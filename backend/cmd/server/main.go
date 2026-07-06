@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/gin-gonic/gin"
 	"github.com/example/bid-maker-backend/internal/config"
 	"github.com/example/bid-maker-backend/internal/handler"
+	"github.com/example/bid-maker-backend/internal/service"
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
@@ -16,6 +17,12 @@ func main() {
 	}
 
 	h := handler.New()
+
+	if len(cfg.LLMProviders) > 0 {
+		registry := service.NewLLMRegistry(cfg.LLMProviders)
+		h.WithLLMRegistry(registry)
+	}
+
 	r := gin.Default()
 	h.RegisterRoutes(r)
 
