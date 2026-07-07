@@ -28,6 +28,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { exportDocument } from '../api/client'
 import { useRoute } from 'vue-router'
 import { useDocumentStore } from '../stores/documentStore'
 import { Editor } from '@tiptap/vue-3'
@@ -112,11 +113,24 @@ const toggleAI = () => {
 }
 
 const extractOutline = () => {
-  console.log('Extract Outline triggered')
+  console.log('Outline already extracted on upload. Re-extract placeholder.')
 }
 
-const generateBid = () => {
-  console.log('Generate Bid triggered')
+const generateBid = async () => {
+  try {
+    const res = await exportDocument(docId.value)
+    const url = window.URL.createObjectURL(new Blob([res.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', 'bid-document.docx')
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  } catch (err) {
+    console.error('Export failed:', err)
+    alert('Export failed. Please try again.')
+  }
 }
 </script>
 
