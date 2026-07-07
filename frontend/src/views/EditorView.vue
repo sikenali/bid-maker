@@ -1,34 +1,86 @@
 <template>
   <div class="editor-view">
-    <h1>Document Editor</h1>
-    <p>Document ID: {{ docId }}</p>
-    <div class="editor-container">
-      <p>Editor view placeholder — section editing and chat will go here.</p>
-    </div>
+    <header class="top-bar">
+      <div class="logo">Bid-Maker</div>
+      <div class="actions">
+        <button title="Help">?</button>
+        <button title="Settings">&#9881;</button>
+      </div>
+    </header>
+    <main class="editor-body">
+      <aside class="left-panel">
+        <OutlineTree @select="handleSelectSection" />
+      </aside>
+      <section class="center-panel">
+        <ContentEditor />
+      </section>
+      <aside class="right-panel">
+        <AIChat />
+      </aside>
+    </main>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { onMounted, defineProps } from 'vue'
+import { useDocumentStore } from '../stores/documentStore'
+import OutlineTree from '../components/OutlineTree.vue'
+import ContentEditor from '../components/ContentEditor.vue'
+import AIChat from '../components/AIChat.vue'
 
-const route = useRoute()
-const docId = computed(() => route.params.id as string)
+const props = defineProps<{ id: string }>()
+const docStore = useDocumentStore()
+
+onMounted(() => {
+  docStore.loadOutline(props.id)
+})
+
+const handleSelectSection = (sectionId: string) => {
+  docStore.loadSection(props.id, sectionId)
+}
 </script>
 
 <style scoped>
 .editor-view {
-  max-width: 900px;
-  margin: 40px auto;
-  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
 }
-
-.editor-container {
-  margin-top: 20px;
-  padding: 20px;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  min-height: 400px;
+.top-bar {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  border-bottom: 1px solid #eee;
+}
+.logo {
+  font-weight: bold;
+  font-size: 18px;
+}
+.actions {
+  display: flex;
+  gap: 8px;
+}
+.editor-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+.left-panel {
+  width: 260px;
+  border-right: 1px solid #eee;
+  overflow-y: auto;
+}
+.center-panel {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+}
+.right-panel {
+  width: 300px;
+  border-left: 1px solid #eee;
+  display: flex;
+  flex-direction: column;
 }
 </style>
