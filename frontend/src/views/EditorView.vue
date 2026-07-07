@@ -1,10 +1,13 @@
 <template>
   <div class="editor-view">
     <header class="top-bar">
-      <div class="logo">Bid-Maker</div>
-      <div class="actions">
-        <button title="Help">?</button>
-        <button title="Settings">&#9881;</button>
+      <div class="logo-area">
+        <div class="logo-icon">📋</div>
+        <span class="brand-name">Bid-Maker</span>
+      </div>
+      <div class="right-actions">
+        <button class="icon-btn" title="Help">?</button>
+        <button class="icon-btn" title="Settings">⚙</button>
       </div>
     </header>
     <main class="editor-body">
@@ -54,13 +57,38 @@ const handleSelectSection = (sectionId: string) => {
   padding: 0 24px;
   border-bottom: 1px solid #eee;
 }
-.logo {
+.logo-area {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.logo-icon {
+  font-size: 22px;
+}
+.brand-name {
   font-weight: bold;
   font-size: 18px;
 }
-.actions {
+.right-actions {
   display: flex;
   gap: 8px;
+}
+.icon-btn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: white;
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.2s, background 0.2s;
+}
+.icon-btn:hover {
+  border-color: #999;
+  background: #fafafa;
 }
 .editor-body {
   display: flex;
