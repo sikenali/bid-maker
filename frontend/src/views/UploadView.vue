@@ -4,17 +4,17 @@
     <header class="navbar">
       <div class="logo-area">
         <div class="logo-icon">
-          <Icon name="RadarChartFilled" :size="22" color="#fff" />
+          <RiRadarChartFilled :size="22" color="#fff" />
         </div>
         <span class="brand-zh">文制猩</span>
         <span class="brand-en">Boomerang</span>
       </div>
       <div class="nav-actions">
         <button class="icon-btn" title="Help">
-          <Icon name="InformationCircleFilled" :size="18" color="#8b7355" />
+          <RiInformationCircleFilled :size="18" color="#8b7355" />
         </button>
         <button class="icon-btn" title="Settings">
-          <Icon name="Settings4Filled" :size="18" color="#8b7355" />
+          <RiSettings4Filled :size="18" color="#8b7355" />
         </button>
       </div>
     </header>
@@ -32,14 +32,14 @@
           @click="triggerUpload"
         >
           <div class="upload-icon-wrap">
-            <Icon name="Upload2Filled" :size="36" color="#c43d3d" />
+            <RiUpload2Filled :size="36" color="#c43d3d" />
           </div>
           <h2 class="upload-title">上传招标文件以生成标书</h2>
           <p class="upload-desc">系统将自动提取关键信息并生成标书大纲</p>
           <p class="upload-format">支持 DOCX、MD格式，单个文件不超过 50MB</p>
           <div class="upload-actions">
             <button class="btn-primary" @click.stop="triggerUpload">
-              <Icon name="Upload2Filled" :size="18" color="#fff" />
+              <RiUpload2Filled :size="18" color="#fff" />
               <span>选择文件</span>
             </button>
           </div>
@@ -56,11 +56,11 @@
         <!-- Bottom Actions -->
         <div class="bottom-actions">
           <button class="btn-outline" disabled>
-            <Icon name="BracesFilled" :size="18" color="#8b7355" />
+            <RiBracesFilled :size="18" color="#8b7355" />
             <span>大纲提取</span>
           </button>
           <button class="btn-gradient" disabled>
-            <Icon name="Book2Filled" :size="18" color="#fff" />
+            <RiBook2Filled :size="18" color="#fff" />
             <span>标书生成</span>
           </button>
         </div>
@@ -71,7 +71,14 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { Icon } from '@remixicon/vue'
+import {
+  RiRadarChartFilled,
+  RiInformationCircleFilled,
+  RiSettings4Filled,
+  RiUpload2Filled,
+  RiBracesFilled,
+  RiBook2Filled,
+} from '@remixicon/vue'
 
 const isDragOver = ref(false)
 const fileInput = ref<HTMLInputElement>()
@@ -129,6 +136,7 @@ const onDrop = (e: DragEvent) => {
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 20px;
 }
 
 .brand-zh {
@@ -159,6 +167,8 @@ const onDrop = (e: DragEvent) => {
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  font-size: 16px;
+  color: #8b7355;
   transition: background 0.2s;
 }
 
@@ -212,6 +222,7 @@ const onDrop = (e: DragEvent) => {
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 36px;
   margin-bottom: 24px;
 }
 
