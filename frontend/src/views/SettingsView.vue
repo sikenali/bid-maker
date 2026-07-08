@@ -123,36 +123,56 @@
             </div>
           </div>
 
-          <!-- 显示设置 -->
-          <div v-if="activeNav === 'display'" class="panel">
-            <div class="display-card">
-              <div class="display-setting">
-                <div class="display-setting-left">
-                  <div class="display-setting-icon">
-                    <RiEyeLine size="24" color="#5B8C5A" />
+          <!-- 规则设置 -->
+          <div v-if="activeNav === 'rules'" class="panel">
+            <div class="rules-placeholder">
+              <RiFileListLine size="48" color="#D4C4A8" />
+              <span class="rules-placeholder-text">规则设置功能开发中</span>
+            </div>
+          </div>
+
+          <!-- 导出设置 -->
+          <div v-if="activeNav === 'export'" class="panel export-panel">
+            <div class="export-cards">
+              <div class="export-card">
+                <div class="export-card-header">
+                  <div class="export-card-icon" style="background: #E8F0F8">
+                    <RiFileWord2Line size="28" color="#2D6A9F" />
                   </div>
-                  <div class="display-setting-texts">
-                    <span class="display-setting-title">显示批注</span>
-                    <span class="display-setting-desc">在编辑器中显示 AI 批注建议</span>
+                  <div class="export-card-titles">
+                    <span class="export-card-name">Word 格式</span>
+                    <span class="export-card-ext">.docx</span>
+                  </div>
+                  <div class="export-check" :class="{ 'export-checked': exportFormat === 'word' }" @click="exportFormat = 'word'">
+                    <RiCheckLine v-if="exportFormat === 'word'" size="14" color="#fff" />
                   </div>
                 </div>
-                <button class="toggle-btn" :class="{ 'toggle-on': showAnnotations }" @click="showAnnotations = !showAnnotations">
-                  <div class="toggle-knob" :class="{ 'toggle-knob-on': showAnnotations }" />
-                </button>
+                <div class="export-features">
+                  <div v-for="f in wordFeatures" :key="f" class="export-feature">
+                    <RiCheckLine size="16" color="#2D8A4E" />
+                    <span>{{ f }}</span>
+                  </div>
+                </div>
               </div>
-              <div class="display-setting">
-                <div class="display-setting-left">
-                  <div class="display-setting-icon">
-                    <RiFileTextLine size="24" color="#5B8C5A" />
+              <div class="export-card">
+                <div class="export-card-header">
+                  <div class="export-card-icon" style="background: #F0E8D8">
+                    <RiMarkdownLine size="28" color="#8B7355" />
                   </div>
-                  <div class="display-setting-texts">
-                    <span class="display-setting-title">显示段落编号</span>
-                    <span class="display-setting-desc">在文档中显示段落编号</span>
+                  <div class="export-card-titles">
+                    <span class="export-card-name">Markdown 格式</span>
+                    <span class="export-card-ext">.md</span>
+                  </div>
+                  <div class="export-check" :class="{ 'export-checked': exportFormat === 'md' }" @click="exportFormat = 'md'">
+                    <RiCheckLine v-if="exportFormat === 'md'" size="14" color="#fff" />
                   </div>
                 </div>
-                <button class="toggle-btn" :class="{ 'toggle-on': showParagraphNumbers }" @click="showParagraphNumbers = !showParagraphNumbers">
-                  <div class="toggle-knob" :class="{ 'toggle-knob-on': showParagraphNumbers }" />
-                </button>
+                <div class="export-features">
+                  <div v-for="f in mdFeatures" :key="f" class="export-feature">
+                    <RiCheckLine size="16" color="#2D8A4E" />
+                    <span>{{ f }}</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -236,7 +256,8 @@ import {
   RiArrowLeftLine,
   RiPaletteLine,
   RiBookmarkLine,
-  RiEyeLine,
+  RiFileListLine,
+  RiFileDownloadLine,
   RiKeyLine,
   RiCheckLine,
   RiAddLine,
@@ -244,6 +265,8 @@ import {
   RiBuildingLine,
   RiServerLine,
   RiCustomerServiceLine,
+  RiFileWord2Line,
+  RiMarkdownLine,
   RiEyeOffLine,
   RiRobotLine,
   RiOpenaiFill,
@@ -273,14 +296,14 @@ interface NavItem {
 const navItems: NavItem[] = [
   { id: 'theme', label: '主题设置', sublabel: 'Theme', title: '主题设置', desc: '选择你喜欢的界面风格', icon: RiPaletteLine, color: '#C23B22' },
   { id: 'template', label: '模板设置', sublabel: 'Template', title: '模板设置', desc: '管理标书模板', icon: RiBookmarkLine, color: '#C8A45C' },
-  { id: 'display', label: '显示设置', sublabel: 'Display', title: '显示设置', desc: '配置显示选项', icon: RiEyeLine, color: '#5B8C5A' },
+  { id: 'rules', label: '规则设置', sublabel: 'Rules', title: '规则设置', desc: '配置标书生成规则', icon: RiFileListLine, color: '#5B8C5A' },
+  { id: 'export', label: '导出设置', sublabel: 'Export', title: '导出设置', desc: '配置标书导出的默认格式', icon: RiFileDownloadLine, color: '#2D6A9F' },
   { id: 'apikey', label: 'API Key', sublabel: '', title: 'API Key', desc: '管理 AI 模型密钥', icon: RiKeyLine, color: '#6366F1' },
 ]
 
 const activeNav = ref('theme')
 const selectedTheme = ref('light')
-const showAnnotations = ref(true)
-const showParagraphNumbers = ref(false)
+const exportFormat = ref('word')
 const settingsStore = useSettingsStore()
 
 const themes = [
@@ -310,6 +333,20 @@ const tplCards: TplCard[] = [
 ]
 
 const currentModelConfig = computed(() => settingsStore.selectedModel)
+
+const wordFeatures = [
+  '保留完整格式与排版样式',
+  '支持表格、图片、页眉页脚',
+  '兼容 Microsoft Word / WPS',
+  '支持目录自动生成',
+]
+
+const mdFeatures = [
+  '纯文本格式，轻量易读',
+  '适合版本管理与协作',
+  '可快速转换为 HTML/PDF',
+  '兼容各类 Markdown 编辑器',
+]
 
 interface ModelItem {
   id: string
@@ -621,88 +658,6 @@ const indicatorStyle = computed(() => {
 
 .panel {
   background: transparent;
-}
-
-/* ── Display Settings ── */
-.display-card {
-  background: #fff;
-  border-radius: 12px;
-  padding: 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-.display-setting {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.display-setting-left {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.display-setting-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 8px;
-  background: rgba(91, 140, 90, 0.1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.display-setting-texts {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.display-setting-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #3D2B1F;
-}
-
-.display-setting-desc {
-  font-size: 13px;
-  color: #8B7355;
-}
-
-.toggle-btn {
-  width: 52px;
-  height: 28px;
-  border-radius: 9999px;
-  border: none;
-  background: #D4C4A8;
-  cursor: pointer;
-  position: relative;
-  transition: background 0.3s ease-out;
-  flex-shrink: 0;
-}
-
-.toggle-on {
-  background: #5B8C5A;
-}
-
-.toggle-knob {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  transition: transform 0.3s cubic-bezier(.34,1.56,.64,1);
-}
-
-.toggle-knob-on {
-  transform: translateX(24px);
 }
 
 /* ── Theme Settings ── */
