@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+!.pnpm/
+.pnpm-store/
+
+# Build output
+dist/
+backend/server
+backend/server_new
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Scratch / temp
+scratch/
+*.tmp
+*.log
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Docs (Chinese filenames)
+标书生成流程图.md
+需求文档.md

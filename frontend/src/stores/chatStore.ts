@@ -13,23 +13,24 @@ export const useChatStore = defineStore('chat', () => {
   const model = ref('')
   const isSending = ref(false)
 
-  const sendMessage = async (text: string, sectionId?: string) => {
+  const sendMessage = async (text: string, sectionId?: string, docId?: string) => {
     if (isSending.value) return
     isSending.value = true
     messages.push({ role: 'user', content: text })
 
     try {
       const res = await sendChat({
+        document_id: docId || null,
         message: text,
         mode: mode.value,
         section_id: sectionId || null,
-        history: messages.map(m => ({ role: m.role, content: m.content })),
+        history: messages.slice(0, -1).map(m => ({ role: m.role, content: m.content })),
         model: model.value,
       })
-      messages.push({ role: 'ai', content: res.data.response || res.data.reply })
+      messages.push({ role: 'ai', content: res.data.reply || res.data.response || '' })
     } catch (err) {
       console.error('Chat failed:', err)
-      messages.push({ role: 'ai', content: 'Sorry, something went wrong.' })
+      messages.push({ role: 'ai', content: '抱歉，出了点问题。' })
     } finally {
       isSending.value = false
     }

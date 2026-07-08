@@ -42,6 +42,10 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 			doc.PUT("/:id/section/:sectionId", h.SaveSection)
 			doc.POST("/:id/export", h.ExportDocument)
 		}
+		config := api.Group("/config")
+		{
+			config.GET("/models", h.ListModels)
+		}
 		api.POST("/chat", h.Chat)
 	}
 }
@@ -86,7 +90,7 @@ func (h *Handler) GetOutline(c *gin.Context) {
 
 func (h *Handler) UpdateOutline(c *gin.Context) {
 	id := c.Param("id")
-	_, ok := service.GetDocument(id)
+	doc, ok := service.GetDocument(id)
 	if !ok {
 		c.JSON(http.StatusNotFound, gin.H{"error": "document not found"})
 		return
@@ -98,7 +102,6 @@ func (h *Handler) UpdateOutline(c *gin.Context) {
 		return
 	}
 
-	doc, _ := service.GetDocument(id)
 	doc.Outline = outline
 	service.UpdateDocument(doc)
 
@@ -182,7 +185,9 @@ func (h *Handler) Chat(c *gin.Context) {
 	var req struct {
 		DocumentID string              `json:"document_id"`
 		SectionID  string              `json:"section_id"`
-		Messages   []service.Message   `json:"messages"`
+		Message    string              `json:"message"`
+		Mode       string              `json:"mode"`
+		History    []service.Message   `json:"history"`
 		Provider   string              `json:"provider"`
 		Model      string              `json:"model"`
 	}
@@ -191,20 +196,37 @@ func (h *Handler) Chat(c *gin.Context) {
 		return
 	}
 
-	provider, err := h.llmRegistry.GetProvider(req.Provider)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+	var doc *model.Document
+	if req.DocumentID != "" {
+		d, ok := service.GetDocument(req.DocumentID)
+		if ok {
+			doc = d
+		}
 	}
 
-	ctx := c.Request.Context()
-	response, err := provider.Chat(ctx, req.Messages, req.Model)
+	chatSvc := service.NewChatService(h.llmRegistry)
+	chatReq := service.ChatRequest{
+		Message:   req.Message,
+		Mode:      req.Mode,
+		SectionID: req.SectionID,
+		History:   req.History,
+		Model:     req.Model,
+	}
+	resp, err := chatSvc.Chat(c.Request.Context(), chatReq, doc)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"response": response})
+	c.JSON(http.StatusOK, resp)
+}
+
+func (h *Handler) ListModels(c *gin.Context) {
+	if h.llmRegistry == nil {
+		c.JSON(http.StatusOK, gin.H{"models": []string{}})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"models": h.llmRegistry.ListModels()})
 }
 
 func (h *Handler) findSection(sections *[]model.Section, id string) *model.Section {

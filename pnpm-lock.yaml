@@ -6,8 +6,17 @@ settings:
 
 importers:
 
+  .:
+    dependencies:
+      '@remixicon/vue':
+        specifier: ^4.9.0
+        version: 4.9.0(vue@3.5.39(typescript@5.9.3))
+
   frontend:
     dependencies:
+      '@remixicon/vue':
+        specifier: ^4.9.0
+        version: 4.9.0(vue@3.5.39(typescript@5.9.3))
       '@tiptap/pm':
         specifier: ^2.4.0
         version: 2.27.2
@@ -208,6 +217,11 @@ packages:
 
   '@remirror/core-constants@3.0.0':
     resolution: {integrity: sha512-42aWfPrimMfDKDi4YegyS7x+/0tlzaqwPQCULLanv3DMIlu96KTJR0fM5isWX2UViOqlGnX6YFgqWepcX+XMNg==}
+
+  '@remixicon/vue@4.9.0':
+    resolution: {integrity: sha512-4P0MY5ScL+MRLnHu1iT3xHAsliBwOGDIgSgHCZhSj2wkLa5NzqiQ4SGD/04VoHM+BRr8+xjmF7ZemkOUlMDJ3A==}
+    peerDependencies:
+      vue: '>= 3'
 
   '@rollup/rollup-android-arm-eabi@4.62.2':
     resolution: {integrity: sha512-6o7ZLZK+BeenkZCFNDXqpbjw9bD6nuWonvS/lwQJp7NoVVxm6p3qE7qQ5jGuBjiFsgvqjD8mZAU5oWxTmbOeOg==}
@@ -987,6 +1001,10 @@ snapshots:
   '@popperjs/core@2.11.8': {}
 
   '@remirror/core-constants@3.0.0': {}
+
+  '@remixicon/vue@4.9.0(vue@3.5.39(typescript@5.9.3))':
+    dependencies:
+      vue: 3.5.39(typescript@5.9.3)
 
   '@rollup/rollup-android-arm-eabi@4.62.2':
     optional: true

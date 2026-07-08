@@ -12,10 +12,16 @@
       </div>
       <div class="nav-actions">
         <button class="nav-btn" title="帮助">
-          <RiQuestionLine size="18" color="#8B7355" />
+          <span class="nav-btn-content">
+            <RiQuestionLine size="20" />
+            <span class="nav-btn-label">帮助</span>
+          </span>
         </button>
         <button class="nav-btn" title="设置" @click="goSettings">
-          <RiSettingsLine size="18" color="#8B7355" />
+          <span class="nav-btn-content">
+            <RiSettingsLine size="20" />
+            <span class="nav-btn-label">设置</span>
+          </span>
         </button>
       </div>
     </header>
@@ -68,13 +74,13 @@ const handleSelectSection = (sectionId: string) => {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: #FBF7F0;
+  background: #FDF6E3;
 }
 
 .navbar {
   height: 64px;
-  padding: 0 24px;
-  background: #FBF7F0;
+  padding: 0 32px;
+  background: #FDF6E3;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -89,10 +95,10 @@ const handleSelectSection = (sectionId: string) => {
 }
 
 .logo-icon {
-  width: 40px;
-  height: 40px;
-  background: #C43D3D;
-  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  background: #C23B22;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -101,15 +107,15 @@ const handleSelectSection = (sectionId: string) => {
 
 .brand-texts {
   display: flex;
-  align-items: center;
-  gap: 4px;
+  flex-direction: column;
+  gap: 0;
 }
 
 .brand-zh {
   font-size: 22px;
   font-weight: 700;
   color: #3D2B1F;
-  line-height: 1.3;
+  line-height: 1.2;
 }
 
 .brand-en {
@@ -121,40 +127,62 @@ const handleSelectSection = (sectionId: string) => {
 .nav-actions {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 8px;
 }
 
 .nav-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: none;
-  background: #F0E8D8;
+  width: 44px;
+  height: 40px;
+  border-radius: 8px;
+  background: #F5EFE0;
+  border: 0.7px solid #E0D5C0;
   cursor: pointer;
+  transition: all 0.2s;
+  overflow: hidden;
+  white-space: nowrap;
+  color: #5C4033;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.2s;
-  flex-shrink: 0;
 }
 
 .nav-btn:hover {
-  background: #E8DCC8;
+  width: 90px;
+  background: #C23B22;
+  border-color: transparent;
+  color: #fff;
+}
+
+.nav-btn-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nav-btn-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: inherit;
+  display: none;
+}
+
+.nav-btn:hover .nav-btn-label {
+  display: inline;
 }
 
 .editor-body {
   flex: 1;
   display: flex;
   gap: 16px;
-  padding: 0 24px 24px;
+  padding: 0 32px 24px;
   overflow: hidden;
 }
 
 .left-panel {
   width: 260px;
   flex-shrink: 0;
-  background: #F5EFE3;
-  border-radius: 16px;
+  background: #FBF7EF;
+  border-radius: 12px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -163,7 +191,7 @@ const handleSelectSection = (sectionId: string) => {
 .center-panel {
   flex: 1;
   background: #fff;
-  border-radius: 16px;
+  border-radius: 12px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -173,8 +201,8 @@ const handleSelectSection = (sectionId: string) => {
 .right-panel {
   width: 300px;
   flex-shrink: 0;
-  background: #F5EFE3;
-  border-radius: 16px;
+  background: #FBF7EF;
+  border-radius: 12px;
   overflow: hidden;
   display: flex;
   flex-direction: column;

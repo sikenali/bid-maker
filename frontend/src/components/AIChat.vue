@@ -53,6 +53,7 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
+import { useRoute } from 'vue-router'
 import { useChatStore } from '../stores/chatStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useDocumentStore } from '../stores/documentStore'
@@ -64,6 +65,8 @@ import {
 const chatStore = useChatStore()
 const settingsStore = useSettingsStore()
 const docStore = useDocumentStore()
+const route = useRoute()
+const docId = route.params.id as string
 const inputText = ref('')
 const messagesRef = ref<HTMLElement>()
 
@@ -77,7 +80,7 @@ const handleSend = () => {
   const text = inputText.value
   inputText.value = ''
   const sectionId = chatStore.mode === 'context' ? docStore.activeSectionId : undefined
-  chatStore.sendMessage(text, sectionId)
+  chatStore.sendMessage(text, sectionId, docId)
   scrollToBottom()
 }
 
@@ -113,7 +116,7 @@ const scrollToBottom = async () => {
 .ai-icon-box {
   width: 28px;
   height: 28px;
-  background: #C43D3D;
+  background: #C23B22;
   border-radius: 8px;
   display: flex;
   align-items: center;
@@ -129,7 +132,7 @@ const scrollToBottom = async () => {
 .model-display {
   display: flex;
   align-items: center;
-  background: #E8DCC8;
+  background: #F0E8D5;
   border-radius: 8px;
   padding: 4px 8px;
   cursor: default;
@@ -160,7 +163,7 @@ const scrollToBottom = async () => {
 .ai-avatar {
   width: 28px;
   height: 28px;
-  background: #C43D3D;
+  background: #C23B22;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -182,7 +185,7 @@ const scrollToBottom = async () => {
 }
 
 .user-bubble {
-  background: #C43D3D;
+  background: #C23B22;
   color: #fff;
 }
 
@@ -217,7 +220,7 @@ const scrollToBottom = async () => {
 .send-btn {
   width: 28px;
   height: 28px;
-  background: #C43D3D;
+  background: #C23B22;
   border: none;
   border-radius: 8px;
   cursor: pointer;
@@ -229,7 +232,7 @@ const scrollToBottom = async () => {
 }
 
 .send-btn:hover {
-  background: #A83232;
+  background: #A83028;
 }
 
 .send-btn:disabled {

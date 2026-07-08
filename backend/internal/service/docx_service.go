@@ -65,19 +65,6 @@ func headingLevel(p wPara) int {
 		return 0
 	}
 	style := p.Props.Style.Val
-	if len(style) > 8 && style[:8] == "Heading " {
-		if n, err := fmt.Sscanf(style, "Heading %d", new(int)); err == nil && n == 1 {
-			var level int
-			fmt.Sscanf(style, "Heading %d", &level)
-			if level >= 1 && level <= 9 {
-				return level
-			}
-		}
-	}
-	return 0
-}
-
-func headingLevelS(style string) int {
 	var level int
 	if n, _ := fmt.Sscanf(style, "Heading %d", &level); n == 1 && level >= 1 && level <= 9 {
 		return level
@@ -134,7 +121,7 @@ func (s *DocxService) ParseDocument(data []byte) (*model.Document, error) {
 
 func (s *DocxService) extractSections(paras []wPara) []model.Section {
 	var sections []model.Section
-	var parentStack []*model.Section
+	var parentStack []int
 
 	for _, p := range paras {
 		text := strings.TrimSpace(extractText(p.Runs))
@@ -151,18 +138,23 @@ func (s *DocxService) extractSections(paras []wPara) []model.Section {
 				Level: level,
 			}
 
-			for len(parentStack) > 0 && parentStack[len(parentStack)-1].Level >= level {
-				parentStack = parentStack[:len(parentStack)-1]
+			for len(parentStack) > 0 {
+				topIdx := parentStack[len(parentStack)-1]
+				if sections[topIdx].Level >= level {
+					parentStack = parentStack[:len(parentStack)-1]
+				} else {
+					break
+				}
 			}
 
 			if len(parentStack) > 0 {
-				parent := parentStack[len(parentStack)-1]
-				parent.Children = append(parent.Children, section)
+				parentIdx := parentStack[len(parentStack)-1]
+				sections[parentIdx].Children = append(sections[parentIdx].Children, section)
 			} else {
 				sections = append(sections, section)
 			}
 
-			parentStack = append(parentStack, &sections[len(sections)-1])
+			parentStack = append(parentStack, len(sections)-1)
 		} else if len(sections) > 0 {
 			last := findLeaf(&sections[len(sections)-1])
 			last.Content += text + "\n"

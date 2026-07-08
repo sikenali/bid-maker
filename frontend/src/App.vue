@@ -15,9 +15,9 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Source Han Sans CN', 'Microsoft YaHei', sans-serif;
-  background-color: #fbf7f0;
-  color: #3d2b1f;
+  font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Source Han Sans CN', 'Microsoft YaHei', sans-serif;
+  background-color: #FDF6E3;
+  color: #3D2B1F;
 }
 
 #app {

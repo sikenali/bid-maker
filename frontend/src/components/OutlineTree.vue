@@ -2,10 +2,10 @@
   <div class="outline-tree">
     <div class="outline-header">
       <div class="header-left">
-        <RiListCheck size="18" color="#C43D3D" />
+        <RiListCheck size="18" color="#C23B22" />
         <span class="header-title">标书大纲</span>
       </div>
-      <button class="add-btn" title="添加章节">
+      <button class="add-btn" title="添加章节" @click="addSection">
         <RiAddLine size="16" color="#8B7355" />
       </button>
     </div>
@@ -16,7 +16,7 @@
           :class="{ active: section.id === activeSectionId }"
           @click="$emit('select', section.id)"
         >
-          <RiFileTextFill v-if="section.id === activeSectionId" size="16" color="#C43D3D" />
+          <RiFileTextFill v-if="section.id === activeSectionId" size="16" color="#C23B22" />
           <RiFileTextLine v-else size="16" color="#8B7355" />
           <span class="item-title">{{ section.title }}</span>
         </div>
@@ -38,6 +38,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useDocumentStore } from '../stores/documentStore'
+import type { Section } from '../stores/documentStore'
 import {
   RiListCheck,
   RiAddLine,
@@ -49,7 +50,20 @@ import {
 const docStore = useDocumentStore()
 const outline = computed(() => docStore.outline)
 const activeSectionId = computed(() => docStore.activeSectionId)
+
 defineEmits<{ select: [id: string] }>()
+
+const addSection = () => {
+  const newSection: Section = {
+    id: Date.now().toString(),
+    title: '新章节',
+    level: 1,
+    parent_id: '',
+    content: '',
+    children: [],
+  }
+  docStore.outline.push(newSection)
+}
 </script>
 
 <style scoped>
@@ -84,7 +98,7 @@ defineEmits<{ select: [id: string] }>()
   height: 28px;
   border-radius: 8px;
   border: none;
-  background: #E8DCC8;
+  background: #F0E8D5;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -112,11 +126,11 @@ defineEmits<{ select: [id: string] }>()
 }
 
 .outline-item:hover {
-  background: rgba(196, 61, 61, 0.04);
+  background: rgba(194, 59, 34, 0.04);
 }
 
 .outline-item.active {
-  background: rgba(196, 61, 61, 0.08);
+  background: rgba(194, 59, 34, 0.08);
 }
 
 .item-title {
@@ -135,11 +149,11 @@ defineEmits<{ select: [id: string] }>()
 }
 
 .outline-subitem:hover {
-  background: rgba(196, 61, 61, 0.04);
+  background: rgba(194, 59, 34, 0.04);
 }
 
 .outline-subitem.active {
-  background: rgba(196, 61, 61, 0.08);
+  background: rgba(194, 59, 34, 0.08);
 }
 
 .subitem-title {

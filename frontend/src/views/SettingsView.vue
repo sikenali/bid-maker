@@ -18,8 +18,13 @@
 
     <div class="body">
       <aside class="sidebar">
-        <span class="sidebar-label">系统设置</span>
+        <div class="sidebar-header">
+          <span class="sidebar-title">系统设置</span>
+          <div class="sidebar-divider" />
+          <span class="sidebar-subtitle">Settings</span>
+        </div>
         <nav class="nav-list">
+          <div class="nav-indicator" :style="indicatorStyle" />
           <button
             v-for="item in navItems"
             :key="item.id"
@@ -27,16 +32,30 @@
             :class="{ 'nav-item-active': activeNav === item.id }"
             @click="activeNav = item.id"
           >
-            <component :is="item.icon" :size="'20'" />
-            <span class="nav-label">{{ item.label }}</span>
+            <component :is="item.icon" :size="'22'" />
+            <div class="nav-texts">
+              <span class="nav-label">{{ item.label }}</span>
+              <span class="nav-sublabel">{{ item.sublabel }}</span>
+            </div>
           </button>
         </nav>
       </aside>
 
       <main class="content">
-        <div class="content-title-group">
-          <h3 class="content-title">{{ currentNav.title }}</h3>
-          <span class="content-subtitle">{{ currentNav.desc }}</span>
+        <div class="content-header">
+          <div class="content-header-left">
+            <div class="content-header-icon" :style="{ background: currentNav.color }">
+              <component :is="currentNav.icon" :size="'20'" color="#fff" />
+            </div>
+            <div class="content-header-texts">
+              <h3 class="content-title">{{ currentNav.title }}</h3>
+              <span class="content-subtitle">{{ currentNav.desc }}</span>
+            </div>
+          </div>
+          <div class="content-header-actions">
+            <button class="action-btn-cancel">取消</button>
+            <button class="action-btn-save" :style="{ background: currentNav.color }">保存</button>
+          </div>
         </div>
 
         <div class="content-scroll">
@@ -62,7 +81,7 @@
             </div>
           </div>
 
-          <!-- 模板设置 (Calicat Template Shelf) -->
+          <!-- 模板设置 -->
           <div v-if="activeNav === 'template'" class="panel">
             <div class="tpl-tabs">
               <button
@@ -104,61 +123,41 @@
             </div>
           </div>
 
-          <!-- 规则设置 (placeholder) -->
-          <div v-if="activeNav === 'rules'" class="panel">
-            <div class="rules-placeholder">
-              <RiFileListLine size="48" color="#D4C4A8" />
-              <span class="rules-placeholder-text">规则设置功能开发中</span>
-            </div>
-          </div>
-
-          <!-- 导出设置 (Calicat Export Format Cards) -->
-          <div v-if="activeNav === 'export'" class="panel export-panel">
-            <div class="export-cards">
-              <div class="export-card">
-                <div class="export-card-header">
-                  <div class="export-card-icon" style="background: #E8F0F8">
-                    <RiFileWord2Line size="28" color="#2D6A9F" />
+          <!-- 显示设置 -->
+          <div v-if="activeNav === 'display'" class="panel">
+            <div class="display-card">
+              <div class="display-setting">
+                <div class="display-setting-left">
+                  <div class="display-setting-icon">
+                    <RiEyeLine size="24" color="#5B8C5A" />
                   </div>
-                  <div class="export-card-titles">
-                    <span class="export-card-name">Word 格式</span>
-                    <span class="export-card-ext">.docx</span>
-                  </div>
-                  <div class="export-check" :class="{ 'export-checked': exportFormat === 'word' }" @click="exportFormat = 'word'">
-                    <RiCheckLine v-if="exportFormat === 'word'" size="14" color="#fff" />
+                  <div class="display-setting-texts">
+                    <span class="display-setting-title">显示批注</span>
+                    <span class="display-setting-desc">在编辑器中显示 AI 批注建议</span>
                   </div>
                 </div>
-                <div class="export-features">
-                  <div v-for="f in wordFeatures" :key="f" class="export-feature">
-                    <RiCheckLine size="16" color="#2D8A4E" />
-                    <span>{{ f }}</span>
-                  </div>
-                </div>
+                <button class="toggle-btn" :class="{ 'toggle-on': showAnnotations }" @click="showAnnotations = !showAnnotations">
+                  <div class="toggle-knob" :class="{ 'toggle-knob-on': showAnnotations }" />
+                </button>
               </div>
-              <div class="export-card">
-                <div class="export-card-header">
-                  <div class="export-card-icon" style="background: #F0E8D8">
-                    <RiMarkdownLine size="28" color="#8B7355" />
+              <div class="display-setting">
+                <div class="display-setting-left">
+                  <div class="display-setting-icon">
+                    <RiFileTextLine size="24" color="#5B8C5A" />
                   </div>
-                  <div class="export-card-titles">
-                    <span class="export-card-name">Markdown 格式</span>
-                    <span class="export-card-ext">.md</span>
-                  </div>
-                  <div class="export-check" :class="{ 'export-checked': exportFormat === 'md' }" @click="exportFormat = 'md'">
-                    <RiCheckLine v-if="exportFormat === 'md'" size="14" color="#fff" />
+                  <div class="display-setting-texts">
+                    <span class="display-setting-title">显示段落编号</span>
+                    <span class="display-setting-desc">在文档中显示段落编号</span>
                   </div>
                 </div>
-                <div class="export-features">
-                  <div v-for="f in mdFeatures" :key="f" class="export-feature">
-                    <RiCheckLine size="16" color="#2D8A4E" />
-                    <span>{{ f }}</span>
-                  </div>
-                </div>
+                <button class="toggle-btn" :class="{ 'toggle-on': showParagraphNumbers }" @click="showParagraphNumbers = !showParagraphNumbers">
+                  <div class="toggle-knob" :class="{ 'toggle-knob-on': showParagraphNumbers }" />
+                </button>
               </div>
             </div>
           </div>
 
-          <!-- API Key (Calicat Model List + Config Form) -->
+          <!-- API Key -->
           <div v-if="activeNav === 'apikey'" class="panel api-full-panel">
             <div class="model-list">
               <span class="model-section">国内模型</span>
@@ -237,8 +236,7 @@ import {
   RiArrowLeftLine,
   RiPaletteLine,
   RiBookmarkLine,
-  RiFileListLine,
-  RiFileDownloadLine,
+  RiEyeLine,
   RiKeyLine,
   RiCheckLine,
   RiAddLine,
@@ -246,8 +244,6 @@ import {
   RiBuildingLine,
   RiServerLine,
   RiCustomerServiceLine,
-  RiFileWord2Line,
-  RiMarkdownLine,
   RiEyeOffLine,
   RiRobotLine,
   RiOpenaiFill,
@@ -267,22 +263,24 @@ function goBack() {
 interface NavItem {
   id: string
   label: string
+  sublabel: string
   title: string
   desc: string
   icon: any
+  color: string
 }
 
 const navItems: NavItem[] = [
-  { id: 'theme', label: '主题设置', title: '主题设置', desc: '选择你喜欢的界面风格', icon: RiPaletteLine },
-  { id: 'template', label: '模板设置', title: '模板设置', desc: '管理标书模板', icon: RiBookmarkLine },
-  { id: 'rules', label: '规则设置', title: '规则设置', desc: '配置标书生成规则', icon: RiFileListLine },
-  { id: 'export', label: '导出设置', title: '导出设置', desc: '配置标书导出的默认格式', icon: RiFileDownloadLine },
-  { id: 'apikey', label: 'API Key', title: 'API Key', desc: '管理 AI 模型密钥', icon: RiKeyLine },
+  { id: 'theme', label: '主题设置', sublabel: 'Theme', title: '主题设置', desc: '选择你喜欢的界面风格', icon: RiPaletteLine, color: '#C23B22' },
+  { id: 'template', label: '模板设置', sublabel: 'Template', title: '模板设置', desc: '管理标书模板', icon: RiBookmarkLine, color: '#C8A45C' },
+  { id: 'display', label: '显示设置', sublabel: 'Display', title: '显示设置', desc: '配置显示选项', icon: RiEyeLine, color: '#5B8C5A' },
+  { id: 'apikey', label: 'API Key', sublabel: '', title: 'API Key', desc: '管理 AI 模型密钥', icon: RiKeyLine, color: '#6366F1' },
 ]
 
 const activeNav = ref('theme')
 const selectedTheme = ref('light')
-const exportFormat = ref('word')
+const showAnnotations = ref(true)
+const showParagraphNumbers = ref(false)
 const settingsStore = useSettingsStore()
 
 const themes = [
@@ -311,19 +309,7 @@ const tplCards: TplCard[] = [
   { name: '咨询服务类', desc: '适用于咨询类采购', category: '咨询服务', iconComp: RiCustomerServiceLine, iconBg: '#D4A017', iconColor: '#fff' },
 ]
 
-const wordFeatures = [
-  '保留完整格式与排版样式',
-  '支持表格、图片、页眉页脚',
-  '兼容 Microsoft Word / WPS',
-  '支持目录自动生成',
-]
-
-const mdFeatures = [
-  '纯文本格式，轻量易读',
-  '适合版本管理与协作',
-  '可快速转换为 HTML/PDF',
-  '兼容各类 Markdown 编辑器',
-]
+const currentModelConfig = computed(() => settingsStore.selectedModel)
 
 interface ModelItem {
   id: string
@@ -344,9 +330,18 @@ const foreignModels: ModelItem[] = [
   { id: 'claude', name: 'Claude 3.5', icon: RiRobotLine, provider: 'Anthropic', model: 'claude-3-5-sonnet' },
 ]
 
-const currentModelConfig = computed(() => settingsStore.selectedModel)
-
 const currentNav = computed(() => navItems.find(i => i.id === activeNav.value)!)
+
+const indicatorStyle = computed(() => {
+  const idx = navItems.findIndex(i => i.id === activeNav.value)
+  const itemHeight = 56
+  const gap = 2
+  return {
+    top: `${idx * (itemHeight + gap)}px`,
+    height: `${itemHeight}px`,
+    background: currentNav.value.color,
+  }
+})
 
 </script>
 
@@ -365,8 +360,8 @@ const currentNav = computed(() => navItems.find(i => i.id === activeNav.value)!)
   align-items: center;
   justify-content: space-between;
   height: 64px;
-  padding: 0 24px;
-  background: #FBF7F0;
+  padding: 0 32px;
+  background: #FDF6E3;
   flex-shrink: 0;
 }
 
@@ -378,9 +373,9 @@ const currentNav = computed(() => navItems.find(i => i.id === activeNav.value)!)
 }
 
 .logo {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
   background: #C23B22;
   display: flex;
   align-items: center;
@@ -439,27 +434,57 @@ const currentNav = computed(() => navItems.find(i => i.id === activeNav.value)!)
 
 /* ── Sidebar ── */
 .sidebar {
-  width: 220px;
+  width: 280px;
   flex-shrink: 0;
-  background: #F5EFE0;
-  padding: 24px 24px;
+  background: #FBF7EF;
+  border-right: 1px solid #E0D5C0;
   display: flex;
   flex-direction: column;
+  position: relative;
 }
 
-.sidebar-label {
-  font-size: 11px;
+.sidebar-header {
+  padding: 20px 24px 16px;
+}
+
+.sidebar-title {
+  font-size: 16px;
   font-weight: 600;
+  color: #3D2B1F;
+}
+
+.sidebar-divider {
+  width: 100%;
+  height: 1px;
+  background: #E0D5C0;
+  margin-top: 2px;
+}
+
+.sidebar-subtitle {
+  font-size: 12px;
   color: #8B7355;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 8px;
+  margin-top: 8px;
+  display: block;
 }
 
 .nav-list {
+  flex: 1;
+  padding: 0 16px 16px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
+  position: relative;
+}
+
+.nav-indicator {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  z-index: 0;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  transition: all 0.3s ease-out;
+  pointer-events: none;
 }
 
 .nav-item {
@@ -471,25 +496,42 @@ const currentNav = computed(() => navItems.find(i => i.id === activeNav.value)!)
   border-radius: 12px;
   background: transparent;
   cursor: pointer;
-  font-size: 14px;
-  color: #8B7355;
-  transition: all 0.2s;
   text-align: left;
   width: 100%;
+  position: relative;
+  z-index: 1;
+  transition: all 0.2s;
 }
 
-.nav-item:hover {
-  background: rgba(0,0,0,0.03);
+.nav-texts {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.nav-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: #3D2B1F;
+  transition: color 0.2s;
 }
 
 .nav-item-active {
-  background: #C23B22;
   color: #fff;
 }
 
 .nav-item-active .nav-label {
   color: #fff;
-  font-weight: 600;
+}
+
+.nav-sublabel {
+  font-size: 11px;
+  color: #8B7355;
+  transition: color 0.2s;
+}
+
+.nav-item-active .nav-sublabel {
+  color: rgba(255,255,255,0.7);
 }
 
 /* ── Content ── */
@@ -498,32 +540,82 @@ const currentNav = computed(() => navItems.find(i => i.id === activeNav.value)!)
   display: flex;
   flex-direction: column;
   min-width: 0;
-  padding: 32px;
-  background: #FBF7EF;
+  background: #FDF6E3;
 }
 
-.content-title-group {
+.content-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 32px;
+  background: #FDF6E3;
+  flex-shrink: 0;
+}
+
+.content-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.content-header-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.content-header-texts {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-bottom: 24px;
+  gap: 2px;
 }
 
 .content-title {
-  font-size: 24px;
+  font-size: 18px;
   font-weight: 700;
   color: #3D2B1F;
   margin: 0;
 }
 
 .content-subtitle {
-  font-size: 14px;
+  font-size: 12px;
   color: #8B7355;
+}
+
+.content-header-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.action-btn-cancel {
+  padding: 12px 24px;
+  border: 0.7px solid #E0D5C0;
+  border-radius: 12px;
+  background: #F5EFE0;
+  color: #8B7355;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.action-btn-save {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 12px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 .content-scroll {
   flex: 1;
   overflow-y: auto;
+  padding: 0 32px 32px;
   min-height: 0;
 }
 
@@ -531,23 +623,110 @@ const currentNav = computed(() => navItems.find(i => i.id === activeNav.value)!)
   background: transparent;
 }
 
-/* ── Theme Grid ── */
+/* ── Display Settings ── */
+.display-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.display-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.display-setting-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.display-setting-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  background: rgba(91, 140, 90, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.display-setting-texts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.display-setting-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #3D2B1F;
+}
+
+.display-setting-desc {
+  font-size: 13px;
+  color: #8B7355;
+}
+
+.toggle-btn {
+  width: 52px;
+  height: 28px;
+  border-radius: 9999px;
+  border: none;
+  background: #D4C4A8;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.3s ease-out;
+  flex-shrink: 0;
+}
+
+.toggle-on {
+  background: #5B8C5A;
+}
+
+.toggle-knob {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.3s cubic-bezier(.34,1.56,.64,1);
+}
+
+.toggle-knob-on {
+  transform: translateX(24px);
+}
+
+/* ── Theme Settings ── */
 .theme-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
+  gap: 12px;
+  padding: 32px;
+  background: #F5EFE0;
+  border: 0.7px solid #E0D5C0;
+  border-radius: 16px;
 }
 
 .theme-card {
   background: #fff;
   border-radius: 12px;
-  padding: 20px;
+  padding: 16px;
   text-align: center;
   cursor: pointer;
   position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
+  aspect-ratio: 1;
   transition: box-shadow 0.2s;
 }
 
@@ -560,11 +739,11 @@ const currentNav = computed(() => navItems.find(i => i.id === activeNav.value)!)
 }
 
 .theme-preview {
-  width: 64px;
-  height: 64px;
+  width: 60px;
+  height: 60px;
   border-radius: 8px;
   border: 1px solid #E0D5C0;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .theme-info {
@@ -588,8 +767,8 @@ const currentNav = computed(() => navItems.find(i => i.id === activeNav.value)!)
   position: absolute;
   top: 8px;
   right: 8px;
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: #D4C4A8;
   display: flex;
@@ -702,8 +881,8 @@ const currentNav = computed(() => navItems.find(i => i.id === activeNav.value)!)
   position: absolute;
   top: 10px;
   right: 10px;
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: #C23B22;
   display: flex;
@@ -746,6 +925,9 @@ const currentNav = computed(() => navItems.find(i => i.id === activeNav.value)!)
   justify-content: center;
   padding: 80px 0;
   gap: 16px;
+  background: #F5EFE0;
+  border: 0.7px solid #E0D5C0;
+  border-radius: 16px;
 }
 
 .rules-placeholder-text {
@@ -763,7 +945,7 @@ const currentNav = computed(() => navItems.find(i => i.id === activeNav.value)!)
   flex: 1;
   background: #fff;
   border-radius: 16px;
-  padding: 32px;
+  padding: 24px;
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -837,8 +1019,12 @@ const currentNav = computed(() => navItems.find(i => i.id === activeNav.value)!)
 /* ── API Key (Model List + Config Form) ── */
 .api-full-panel {
   display: flex;
-  gap: 32px;
+  gap: 24px;
   min-height: 0;
+  background: #F5EFE0;
+  border: 0.7px solid #E0D5C0;
+  border-radius: 16px;
+  padding: 32px;
 }
 
 .model-list {
@@ -965,19 +1151,20 @@ const currentNav = computed(() => navItems.find(i => i.id === activeNav.value)!)
 }
 
 .form-label {
-  width: 100px;
-  font-size: 14px;
-  font-weight: 600;
-  color: #3D2B1F;
+  width: 80px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #5C4033;
   flex-shrink: 0;
 }
 
 .form-input {
   flex: 1;
-  background: #F5EFE3;
+  background: #FAFAF5;
+  border: 0.7px solid #E0D5C0;
   border-radius: 8px;
-  padding: 12px 16px;
-  font-size: 14px;
+  padding: 10px 12px;
+  font-size: 13px;
   color: #3D2B1F;
 }
 
@@ -985,10 +1172,11 @@ const currentNav = computed(() => navItems.find(i => i.id === activeNav.value)!)
   display: flex;
   align-items: center;
   justify-content: space-between;
+  position: relative;
 }
 
 .form-key-masked {
-  font-size: 14px;
+  font-size: 13px;
   color: #3D2B1F;
   font-family: monospace;
 }
@@ -1000,6 +1188,17 @@ const currentNav = computed(() => navItems.find(i => i.id === activeNav.value)!)
   padding: 0;
   display: flex;
   align-items: center;
+  width: 24px;
+  height: 24px;
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.form-key-toggle:hover {
+  background: rgba(194, 59, 34, 0.05);
+  border-radius: 4px;
 }
 
 .form-actions {
@@ -1010,9 +1209,9 @@ const currentNav = computed(() => navItems.find(i => i.id === activeNav.value)!)
 
 .form-btn-cancel {
   padding: 10px 24px;
-  border: none;
+  border: 0.7px solid #E0D5C0;
   border-radius: 8px;
-  background: #F0E8D5;
+  background: #F5EFE0;
   color: #8B7355;
   font-size: 14px;
   font-weight: 500;

@@ -7,7 +7,7 @@
       </div>
       <div class="edit-tools">
         <button class="tool-btn ai-btn" title="AI Assist" @click="toggleAI">
-          <RiSparklingFill size="18" color="#C43D3D" />
+          <RiSparklingFill size="18" color="#C23B22" />
         </button>
         <button class="tool-btn save-btn" title="Save" @click="save" :disabled="saving">
           <RiSaveLine size="18" color="#8B7355" />
@@ -173,7 +173,7 @@ const generateBid = async () => {
   height: 32px;
   border-radius: 8px;
   border: none;
-  background: #F0E8D8;
+  background: #F0E8D5;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -274,7 +274,7 @@ const generateBid = async () => {
 }
 
 .outline-btn {
-  background: #F0E8D8;
+  background: #F0E8D5;
   color: #8B7355;
 }
 
@@ -283,12 +283,12 @@ const generateBid = async () => {
 }
 
 .bid-btn {
-  background: #C43D3D;
+  background: #C23B22;
   color: #fff;
 }
 
 .bid-btn:hover {
-  background: #A83232;
+  background: #A83028;
 }
 
 .bid-btn span {

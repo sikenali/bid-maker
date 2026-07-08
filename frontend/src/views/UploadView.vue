@@ -12,16 +12,25 @@
       </div>
       <div class="nav-actions">
         <button class="nav-btn" title="帮助">
-          <RiQuestionLine size="18" color="#8B7355" />
+          <span class="nav-btn-content">
+            <RiQuestionLine size="20" />
+            <span class="nav-btn-label">帮助</span>
+          </span>
         </button>
         <button class="nav-btn" title="设置" @click="goSettings">
-          <RiSettingsLine size="18" color="#8B7355" />
+          <span class="nav-btn-content">
+            <RiSettingsLine size="20" />
+            <span class="nav-btn-label">设置</span>
+          </span>
         </button>
       </div>
     </header>
 
     <main class="main">
       <div class="main-inner">
+        <h2 class="upload-title">上传招标文件以生成标书</h2>
+        <p class="upload-desc">系统将自动提取关键信息并生成标书大纲</p>
+
         <div
           class="upload-zone"
           :class="{ 'upload-zone-hover': isDragOver }"
@@ -31,17 +40,15 @@
           @click="triggerUpload"
         >
           <div class="upload-icon-wrap" :class="{ uploading: loading }">
-            <RiUploadCloudLine v-if="!loading" :size="'36'" color="#C43D3D" />
+            <RiUploadCloudLine v-if="!loading" :size="'36'" color="#C23B22" />
             <RiLoaderLine v-else :size="'36'" color="#5B8C5A" class="spin-icon" />
           </div>
-          <h2 class="upload-title">上传招标文件以生成标书</h2>
-          <p class="upload-desc">系统将自动提取关键信息并生成标书大纲</p>
-          <p class="upload-format">支持 DOCX、MD格式，单个文件不超过 50MB</p>
+          <p class="upload-hint">拖拽文件到此处，或点击选择文件</p>
+          <p class="upload-format">支持 DOCX、MD 格式，单个文件不超过 50MB</p>
           <button class="btn-primary" @click.stop="triggerUpload">
             <RiAddFill size="18" color="#fff" />
             <span>选择文件</span>
           </button>
-          <p class="upload-hint">或拖拽文件到此处</p>
           <input
             ref="fileInput"
             type="file"
@@ -55,18 +62,7 @@
           <div class="progress-bar">
             <div class="progress-fill" :style="{ width: uploadProgress + '%' }" />
           </div>
-          <span class="progress-text">{{ uploadProgress }}%</span>
-        </div>
-
-        <div class="bottom-actions">
-          <button class="btn-outline" disabled>
-            <RiBracesFill size="18" color="#8B7355" />
-            <span>大纲提取</span>
-          </button>
-          <button class="btn-gradient" disabled>
-            <RiSparklingFill size="18" color="#fff" />
-            <span>标书生成</span>
-          </button>
+          <span class="progress-text">{{ Math.round(uploadProgress) }}%</span>
         </div>
       </div>
     </main>
@@ -84,8 +80,6 @@ import {
   RiUploadCloudLine,
   RiLoaderLine,
   RiAddFill,
-  RiBracesFill,
-  RiSparklingFill,
 } from '@remixicon/vue'
 
 const router = useRouter()
@@ -139,7 +133,7 @@ const onDrop = (e: DragEvent) => {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  background: #FBF7F0;
+  background: #FDF6E3;
 }
 
 .navbar {
@@ -148,8 +142,8 @@ const onDrop = (e: DragEvent) => {
   left: 0;
   right: 0;
   height: 64px;
-  padding: 0 24px;
-  background: #FBF7F0;
+  padding: 0 32px;
+  background: #FDF6E3;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -164,10 +158,10 @@ const onDrop = (e: DragEvent) => {
 }
 
 .logo-icon {
-  width: 40px;
-  height: 40px;
-  background: #C43D3D;
-  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  background: #C23B22;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -196,24 +190,47 @@ const onDrop = (e: DragEvent) => {
 .nav-actions {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 8px;
 }
 
 .nav-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: #F0E8D8;
-  border: none;
+  width: 44px;
+  height: 40px;
+  border-radius: 8px;
+  background: #F5EFE0;
+  border: 0.7px solid #E0D5C0;
+  cursor: pointer;
+  transition: all 0.2s;
+  overflow: hidden;
+  white-space: nowrap;
+  color: #5C4033;
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
-  transition: background 0.2s;
 }
 
 .nav-btn:hover {
-  background: #E4D9C4;
+  width: 90px;
+  background: #C23B22;
+  border-color: transparent;
+  color: #fff;
+}
+
+.nav-btn-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nav-btn-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: inherit;
+  display: none;
+}
+
+.nav-btn:hover .nav-btn-label {
+  display: inline;
 }
 
 .main {
@@ -222,23 +239,38 @@ const onDrop = (e: DragEvent) => {
   align-items: center;
   justify-content: center;
   padding-top: 64px;
+  padding-left: 32px;
+  padding-right: 32px;
 }
 
 .main-inner {
   width: 100%;
   max-width: 800px;
-  padding: 32px;
   display: flex;
   flex-direction: column;
   align-items: center;
 }
 
+.upload-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: #3D2B1F;
+  margin: 0 0 8px;
+  font-family: 'Noto Serif SC', serif;
+}
+
+.upload-desc {
+  font-size: 16px;
+  color: #8B7355;
+  margin: 0 0 40px;
+}
+
 .upload-zone {
   width: 100%;
-  height: 596px;
-  border: 2px dashed #D4C5A9;
-  border-radius: 16px;
-  background: #F5EFE3;
+  border: 2px dashed #D4C4A8;
+  border-radius: 12px;
+  background: #FBF7EF;
+  padding: 60px 40px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -248,14 +280,14 @@ const onDrop = (e: DragEvent) => {
 }
 
 .upload-zone-hover {
-  border-color: #C43D3D;
-  background: #FAF5EE;
+  border-color: #C23B22;
+  background: rgba(194, 59, 34, 0.05);
 }
 
 .upload-icon-wrap {
   width: 80px;
   height: 80px;
-  background: #F0E8D8;
+  background: #F0E8D5;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -276,23 +308,16 @@ const onDrop = (e: DragEvent) => {
   to { transform: rotate(360deg); }
 }
 
-.upload-title {
-  font-size: 20px;
-  font-weight: 600;
-  color: #3D2B1F;
-  margin: 0 0 8px;
-}
-
-.upload-desc {
+.upload-hint {
   font-size: 14px;
-  color: #9B8C7C;
-  margin: 0 0 8px;
+  color: #8B7355;
+  margin-bottom: 8px;
 }
 
 .upload-format {
   font-size: 12px;
   color: #B8A88A;
-  margin: 0 0 24px;
+  margin-bottom: 24px;
 }
 
 .btn-primary {
@@ -301,8 +326,8 @@ const onDrop = (e: DragEvent) => {
   gap: 8px;
   padding: 12px 32px;
   border: none;
-  border-radius: 12px;
-  background: #C43D3D;
+  border-radius: 8px;
+  background: #C23B22;
   color: #fff;
   font-size: 15px;
   font-weight: 600;
@@ -311,13 +336,7 @@ const onDrop = (e: DragEvent) => {
 }
 
 .btn-primary:hover {
-  background: #A83232;
-}
-
-.upload-hint {
-  font-size: 12px;
-  color: #B8A88A;
-  margin: 16px 0 0;
+  background: #A83028;
 }
 
 .progress-area {
@@ -326,7 +345,7 @@ const onDrop = (e: DragEvent) => {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-top: 24px;
+  margin-top: 40px;
 }
 
 .progress-bar {
@@ -349,42 +368,5 @@ const onDrop = (e: DragEvent) => {
   color: #5B8C5A;
   font-weight: 600;
   white-space: nowrap;
-}
-
-.bottom-actions {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-top: 24px;
-}
-
-.btn-outline {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 32px;
-  border: 0.7px solid #D4C5A9;
-  border-radius: 12px;
-  background: #F0E8D8;
-  color: #5C4A3A;
-  font-size: 15px;
-  font-weight: 600;
-  cursor: not-allowed;
-  opacity: 0.7;
-}
-
-.btn-gradient {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 32px;
-  border: none;
-  border-radius: 12px;
-  background: linear-gradient(to bottom, #C43D3D, #A83232);
-  color: #fff;
-  font-size: 15px;
-  font-weight: 600;
-  cursor: not-allowed;
-  opacity: 0.7;
 }
 </style>
