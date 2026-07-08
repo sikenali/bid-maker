@@ -18,8 +18,9 @@ export const useDocumentStore = defineStore('document', () => {
 
   const loadOutline = async (docId: string) => {
     const res = await getOutline(docId)
-    outline.value = res.data.outline
-    res.data.outline.forEach((s: Section) => sections.value.set(s.id, s))
+    const items = res.data.outline || []
+    outline.value = items
+    items.forEach((s: Section) => sections.value.set(s.id, s))
   }
 
   const loadSection = async (docId: string, sectionId: string) => {

@@ -1,18 +1,14 @@
 <template>
   <div class="ai-chat">
     <div class="chat-header">
-      <span>AI Assistant</span>
-      <div class="header-controls">
-        <select v-model="chatStore.model" class="model-select">
-          <option value="">Select Model</option>
-        </select>
-        <button
-          :class="{ active: chatStore.mode === 'context' }"
-          @click="chatStore.setMode(chatStore.mode === 'context' ? 'free' : 'context')"
-          title="Toggle context mode"
-        >
-          {{ chatStore.mode === 'context' ? 'Context' : 'Free' }}
-        </button>
+      <div class="header-left">
+        <div class="ai-icon-box">
+          <RiSparklingFill size="16" color="#fff" />
+        </div>
+        <span class="header-title">AI 助手</span>
+      </div>
+      <div class="model-display">
+        <span class="model-label">{{ settingsStore.selectedModel.name }}</span>
       </div>
     </div>
     <div class="chat-messages" ref="messagesRef">
@@ -22,36 +18,59 @@
         class="message"
         :class="msg.role"
       >
-        <div v-if="msg.role === 'ai'" class="avatar">&#129302;</div>
-        <div class="bubble">{{ msg.content }}</div>
+        <template v-if="msg.role === 'ai'">
+          <div class="ai-avatar">
+            <RiSparklingFill size="14" color="#fff" />
+          </div>
+          <div class="bubble ai-bubble">{{ msg.content }}</div>
+        </template>
+        <template v-else>
+          <div class="bubble user-bubble">{{ msg.content }}</div>
+        </template>
       </div>
       <div v-if="chatStore.isSending" class="message ai">
-        <div class="avatar">&#129302;</div>
-        <div class="bubble">Thinking...</div>
+        <div class="ai-avatar">
+          <RiSparklingFill size="14" color="#fff" />
+        </div>
+        <div class="bubble ai-bubble">思考中...</div>
       </div>
     </div>
-    <div class="chat-input">
-      <input
-        v-model="inputText"
-        @keyup.enter="handleSend"
-        placeholder="Type a message..."
-      />
-      <button @click="handleSend" :disabled="chatStore.isSending">
-        {{ chatStore.isSending ? '...' : 'Send' }}
-      </button>
+    <div class="chat-input-area">
+      <div class="input-container">
+        <input
+          v-model="inputText"
+          @keyup.enter="handleSend"
+          placeholder="输入您的问题..."
+          class="chat-input"
+        />
+        <button @click="handleSend" :disabled="chatStore.isSending" class="send-btn">
+          <RiSendPlaneFill size="14" color="#fff" />
+        </button>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick } from 'vue'
+import { ref, watch, nextTick } from 'vue'
 import { useChatStore } from '../stores/chatStore'
+import { useSettingsStore } from '../stores/settingsStore'
 import { useDocumentStore } from '../stores/documentStore'
+import {
+  RiSparklingFill,
+  RiSendPlaneFill,
+} from '@remixicon/vue'
 
 const chatStore = useChatStore()
+const settingsStore = useSettingsStore()
 const docStore = useDocumentStore()
 const inputText = ref('')
 const messagesRef = ref<HTMLElement>()
+
+chatStore.setModel(settingsStore.selectedModel.model)
+watch(() => settingsStore.selectedModelId, () => {
+  chatStore.setModel(settingsStore.selectedModel.model)
+})
 
 const handleSend = () => {
   if (!inputText.value.trim()) return
@@ -76,82 +95,145 @@ const scrollToBottom = async () => {
   flex-direction: column;
   height: 100%;
 }
+
 .chat-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 12px 16px;
-  border-bottom: 1px solid #eee;
-  font-weight: bold;
+  flex-shrink: 0;
 }
-.header-controls {
+
+.header-left {
   display: flex;
-  gap: 8px;
   align-items: center;
+  gap: 8px;
 }
-.model-select {
-  font-size: 12px;
-  padding: 2px 4px;
+
+.ai-icon-box {
+  width: 28px;
+  height: 28px;
+  background: #C43D3D;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-.header-controls button {
-  font-size: 12px;
+
+.header-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #3D2B1F;
+}
+
+.model-display {
+  display: flex;
+  align-items: center;
+  background: #E8DCC8;
+  border-radius: 8px;
   padding: 4px 8px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  background: white;
-  cursor: pointer;
+  cursor: default;
 }
-.header-controls button.active {
-  background: #1677ff;
-  color: white;
-  border-color: #1677ff;
+
+.model-label {
+  font-size: 11px;
+  color: #3D2B1F;
+  font-weight: 500;
 }
+
 .chat-messages {
   flex: 1;
   overflow-y: auto;
   padding: 16px;
 }
+
 .message {
   display: flex;
   gap: 8px;
   margin-bottom: 12px;
 }
+
 .message.user {
-  flex-direction: row-reverse;
+  justify-content: flex-end;
 }
+
+.ai-avatar {
+  width: 28px;
+  height: 28px;
+  background: #C43D3D;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
 .bubble {
   max-width: 80%;
-  padding: 8px 12px;
-  border-radius: 8px;
-  background: #f0f0f0;
-  font-size: 14px;
+  padding: 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  line-height: 1.6;
 }
-.message.user .bubble {
-  background: #1677ff;
-  color: white;
+
+.ai-bubble {
+  background: #fff;
+  color: #3D2B1F;
 }
-.chat-input {
-  display: flex;
-  gap: 8px;
+
+.user-bubble {
+  background: #C43D3D;
+  color: #fff;
+}
+
+.chat-input-area {
   padding: 12px 16px;
-  border-top: 1px solid #eee;
+  flex-shrink: 0;
 }
-.chat-input input {
+
+.input-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 8px;
+}
+
+.chat-input {
   flex: 1;
-  padding: 8px 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-}
-.chat-input button {
-  padding: 8px 16px;
-  background: #1677ff;
-  color: white;
   border: none;
-  border-radius: 4px;
-  cursor: pointer;
+  outline: none;
+  font-size: 12px;
+  color: #3D2B1F;
+  background: transparent;
+  padding: 8px 0;
 }
-.chat-input button:disabled {
-  background: #ccc;
+
+.chat-input::placeholder {
+  color: #B8A88A;
+}
+
+.send-btn {
+  width: 28px;
+  height: 28px;
+  background: #C43D3D;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.2s;
+}
+
+.send-btn:hover {
+  background: #A83232;
+}
+
+.send-btn:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
 }
 </style>

@@ -1,38 +1,52 @@
 <template>
   <div class="content-editor">
     <div class="editor-header">
-      <span class="current-section">{{ currentSectionTitle }}</span>
-      <div class="toolbar">
-        <button class="ai-btn" title="AI Assist" @click="toggleAI" :disabled="saving">
-          ✨ AI Assist
+      <div class="current-section">
+        <span class="section-main">{{ currentSectionTitle }}</span>
+        <span v-if="subTitle" class="section-sub">/ {{ subTitle }}</span>
+      </div>
+      <div class="edit-tools">
+        <button class="tool-btn ai-btn" title="AI Assist" @click="toggleAI">
+          <RiSparklingFill size="18" color="#C43D3D" />
         </button>
-        <button class="save-btn" title="Save" @click="save" :disabled="saving">
-          {{ saving ? 'Saving...' : '💾 Save' }}
+        <button class="tool-btn save-btn" title="Save" @click="save" :disabled="saving">
+          <RiSaveLine size="18" color="#8B7355" />
         </button>
       </div>
     </div>
     <div class="editor-body">
-      <Editor
-        v-if="editor"
-        :editor="editor"
-        @update="onEditorUpdate"
-      />
-      <div v-else class="editor-placeholder">Select a section to edit</div>
-    </div>
-    <div class="editor-footer">
-      <button class="outline-btn" @click="extractOutline">Extract Outline</button>
-      <button class="export-btn" @click="generateBid">Generate Bid</button>
+      <div class="content-area">
+        <div class="section-title">{{ currentSectionTitle }}</div>
+        <EditorContent v-if="editor" :editor="editor" @update="onEditorUpdate" />
+        <div v-else class="editor-placeholder">选择章节开始编辑</div>
+      </div>
+      <div class="ai-generate-area">
+        <button class="gen-btn outline-btn" @click="extractOutline">
+          <RiFileListLine size="20" color="#8B7355" />
+          <span>大纲提取</span>
+        </button>
+        <button class="gen-btn bid-btn" @click="generateBid">
+          <RiFilePaper2Line size="20" color="#8B7355" />
+          <span>标书生成</span>
+        </button>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
-import { exportDocument } from '../api/client'
+import { ref, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useDocumentStore } from '../stores/documentStore'
-import { Editor } from '@tiptap/vue-3'
+import { useEditor, EditorContent } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
+import {
+  RiSparklingFill,
+  RiSaveLine,
+  RiFileListLine,
+  RiFilePaper2Line,
+} from '@remixicon/vue'
+import { exportDocument } from '../api/client'
 
 const route = useRoute()
 const docStore = useDocumentStore()
@@ -43,10 +57,20 @@ const currentSection = computed(() => {
   if (!activeSectionId.value) return null
   return docStore.sections.get(activeSectionId.value)
 })
-const currentSectionTitle = computed(() => currentSection.value?.title || 'No section selected')
+const currentSectionTitle = computed(() => currentSection.value?.title || '选择章节开始编辑')
+const subTitle = computed(() => '')
+
 const saving = ref(false)
 
-const editor = ref<Editor | null>(null)
+const editor = useEditor({
+  extensions: [StarterKit],
+  content: '',
+  editorProps: {
+    attributes: {
+      class: 'tiptap-editor',
+    },
+  },
+})
 
 let debounceTimer: ReturnType<typeof setTimeout>
 const debouncedSave = (sectionId: string, content: string) => {
@@ -56,9 +80,9 @@ const debouncedSave = (sectionId: string, content: string) => {
   }, 1000)
 }
 
-const onEditorUpdate = ({ editor }: { editor: Editor }) => {
+const onEditorUpdate = ({ editor: ed }: { editor: any }) => {
   if (!activeSectionId.value) return
-  const html = editor.getHTML()
+  const html = ed.getHTML()
   debouncedSave(activeSectionId.value, html)
 }
 
@@ -74,46 +98,19 @@ const save = async () => {
 }
 
 watch(activeSectionId, async (newId) => {
-  if (newId) {
+  if (newId && editor.value) {
     await docStore.loadSection(docId.value, newId)
     const section = docStore.sections.get(newId)
-    if (editor.value) {
-      editor.value.commands.setContent(section?.content || '<p></p>')
-    }
-  }
-}, { immediate: false })
-
-onMounted(async () => {
-  editor.value = new Editor({
-    extensions: [StarterKit],
-    content: '',
-    editorProps: {
-      attributes: {
-        class: 'tiptap-editor',
-      },
-    },
-  })
-
-  if (editor.value && activeSectionId.value) {
-    await docStore.loadSection(docId.value, activeSectionId.value)
-    const section = docStore.sections.get(activeSectionId.value)
     editor.value.commands.setContent(section?.content || '<p></p>')
   }
-})
-
-onBeforeUnmount(() => {
-  if (editor.value) {
-    editor.value.destroy()
-    editor.value = null
-  }
-})
+}, { immediate: false })
 
 const toggleAI = () => {
   console.log('AI Assist triggered')
 }
 
 const extractOutline = () => {
-  console.log('Outline already extracted on upload. Re-extract placeholder.')
+  console.log('Outline extracted')
 }
 
 const generateBid = async () => {
@@ -129,7 +126,7 @@ const generateBid = async () => {
     window.URL.revokeObjectURL(url)
   } catch (err) {
     console.error('Export failed:', err)
-    alert('Export failed. Please try again.')
+    alert('导出失败，请重试')
   }
 }
 </script>
@@ -145,64 +142,87 @@ const generateBid = async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
-  border-bottom: 1px solid #eee;
-  background: #fafafa;
+  padding: 12px 20px;
+  flex-shrink: 0;
 }
 
 .current-section {
-  font-weight: 600;
-  font-size: 15px;
-  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.toolbar {
+.section-main {
+  font-size: 14px;
+  font-weight: 600;
+  color: #3D2B1F;
+}
+
+.section-sub {
+  font-size: 12px;
+  color: #8B7355;
+}
+
+.edit-tools {
   display: flex;
   gap: 8px;
 }
 
-.ai-btn, .save-btn {
-  padding: 6px 14px;
-  border-radius: 6px;
-  border: 1px solid #ddd;
-  background: white;
+.tool-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  background: #F0E8D8;
   cursor: pointer;
-  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition: background 0.2s;
 }
 
-.ai-btn:hover, .save-btn:hover {
-  background: #f0f0f0;
+.tool-btn:hover {
+  background: #E8DCC8;
 }
 
-.ai-btn:disabled, .save-btn:disabled {
-  opacity: 0.6;
+.tool-btn:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
 .editor-body {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+}
+
+.content-area {
+  flex: 1;
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #3D2B1F;
+  margin-bottom: 16px;
 }
 
 .editor-placeholder {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 100%;
-  color: #999;
+  height: 200px;
+  color: #8B7355;
   font-size: 14px;
 }
 
 .tiptap-editor {
-  max-width: 800px;
-  margin: 0 auto;
-  min-height: 100%;
   outline: none;
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1.7;
-  color: #333;
+  color: #3D2B1F;
 }
 
 .tiptap-editor :deep(p) {
@@ -214,6 +234,7 @@ const generateBid = async () => {
 .tiptap-editor :deep(h3) {
   margin-top: 1em;
   margin-bottom: 0.5em;
+  color: #3D2B1F;
 }
 
 .tiptap-editor :deep(ul),
@@ -223,42 +244,54 @@ const generateBid = async () => {
 }
 
 .tiptap-editor :deep(blockquote) {
-  border-left: 3px solid #d0d0d0;
+  border-left: 3px solid #E0D5C0;
   padding-left: 12px;
   margin: 0.5em 0;
-  color: #555;
+  color: #8B7355;
 }
 
-.editor-footer {
+.ai-generate-area {
   display: flex;
-  justify-content: center;
-  gap: 16px;
+  gap: 12px;
+  margin-top: 24px;
+  background: #FFF8F0;
+  border-radius: 12px;
   padding: 16px;
-  border-top: 1px solid #eee;
-  background: #fafafa;
+  flex-shrink: 0;
 }
 
-.outline-btn, .export-btn {
-  padding: 10px 24px;
-  border-radius: 6px;
-  border: 1px solid #ddd;
-  background: white;
+.gen-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 32px;
+  border-radius: 12px;
+  border: none;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 15px;
+  font-weight: 500;
   transition: background 0.2s;
 }
 
+.outline-btn {
+  background: #F0E8D8;
+  color: #8B7355;
+}
+
 .outline-btn:hover {
-  background: #f5f5f5;
+  background: #E8DCC8;
 }
 
-.export-btn {
-  background: #1677ff;
-  color: white;
-  border: none;
+.bid-btn {
+  background: #C43D3D;
+  color: #fff;
 }
 
-.export-btn:hover {
-  background: #4096ff;
+.bid-btn:hover {
+  background: #A83232;
+}
+
+.bid-btn span {
+  color: #fff;
 }
 </style>

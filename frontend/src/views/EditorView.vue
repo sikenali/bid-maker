@@ -1,15 +1,25 @@
 <template>
-  <div class="editor-view">
-    <header class="top-bar">
-      <div class="logo-area">
-        <div class="logo-icon">📋</div>
-        <span class="brand-name">Bid-Maker</span>
+  <div class="page">
+    <header class="navbar">
+      <div class="logo-area" @click="goHome">
+        <div class="logo-icon">
+          <RiRadarFill size="22" color="#fff" />
+        </div>
+        <div class="brand-texts">
+          <span class="brand-zh">文制星</span>
+          <span class="brand-en">Boomerang</span>
+        </div>
       </div>
-      <div class="right-actions">
-        <button class="icon-btn" title="Help">?</button>
-        <button class="icon-btn" title="Settings">⚙</button>
+      <div class="nav-actions">
+        <button class="nav-btn" title="帮助">
+          <RiQuestionLine size="18" color="#8B7355" />
+        </button>
+        <button class="nav-btn" title="设置" @click="goSettings">
+          <RiSettingsLine size="18" color="#8B7355" />
+        </button>
       </div>
     </header>
+
     <main class="editor-body">
       <aside class="left-panel">
         <OutlineTree @select="handleSelectSection" />
@@ -25,14 +35,24 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, defineProps } from 'vue'
+import { onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useDocumentStore } from '../stores/documentStore'
 import OutlineTree from '../components/OutlineTree.vue'
 import ContentEditor from '../components/ContentEditor.vue'
 import AIChat from '../components/AIChat.vue'
+import {
+  RiRadarFill,
+  RiQuestionLine,
+  RiSettingsLine,
+} from '@remixicon/vue'
 
 const props = defineProps<{ id: string }>()
+const router = useRouter()
 const docStore = useDocumentStore()
+
+const goSettings = () => router.push('/settings')
+const goHome = () => router.push('/')
 
 onMounted(() => {
   docStore.loadOutline(props.id)
@@ -44,70 +64,118 @@ const handleSelectSection = (sectionId: string) => {
 </script>
 
 <style scoped>
-.editor-view {
+.page {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  background: #FBF7F0;
 }
-.top-bar {
+
+.navbar {
   height: 64px;
+  padding: 0 24px;
+  background: #FBF7F0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
-  border-bottom: 1px solid #eee;
+  flex-shrink: 0;
 }
+
 .logo-area {
   display: flex;
   align-items: center;
-  gap: 10px;
-}
-.logo-icon {
-  font-size: 22px;
-}
-.brand-name {
-  font-weight: bold;
-  font-size: 18px;
-}
-.right-actions {
-  display: flex;
-  gap: 8px;
-}
-.icon-btn {
-  width: 36px;
-  height: 36px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  background: white;
+  gap: 12px;
   cursor: pointer;
-  font-size: 16px;
+}
+
+.logo-icon {
+  width: 40px;
+  height: 40px;
+  background: #C43D3D;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: border-color 0.2s, background 0.2s;
+  flex-shrink: 0;
 }
-.icon-btn:hover {
-  border-color: #999;
-  background: #fafafa;
-}
-.editor-body {
+
+.brand-texts {
   display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.brand-zh {
+  font-size: 22px;
+  font-weight: 700;
+  color: #3D2B1F;
+  line-height: 1.3;
+}
+
+.brand-en {
+  font-size: 12px;
+  color: #8B7355;
+  line-height: 1.3;
+}
+
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.nav-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: #F0E8D8;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.nav-btn:hover {
+  background: #E8DCC8;
+}
+
+.editor-body {
   flex: 1;
+  display: flex;
+  gap: 16px;
+  padding: 0 24px 24px;
   overflow: hidden;
 }
+
 .left-panel {
   width: 260px;
-  border-right: 1px solid #eee;
-  overflow-y: auto;
+  flex-shrink: 0;
+  background: #F5EFE3;
+  border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
+
 .center-panel {
   flex: 1;
-  overflow-y: auto;
-  padding: 24px;
+  background: #fff;
+  border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
+
 .right-panel {
   width: 300px;
-  border-left: 1px solid #eee;
+  flex-shrink: 0;
+  background: #F5EFE3;
+  border-radius: 16px;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
