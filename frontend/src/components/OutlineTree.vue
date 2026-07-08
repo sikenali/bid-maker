@@ -37,6 +37,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { useDocumentStore } from '../stores/documentStore'
 import type { Section } from '../stores/documentStore'
 import {
@@ -47,7 +48,9 @@ import {
   RiArrowRightSLine,
 } from '@remixicon/vue'
 
+const route = useRoute()
 const docStore = useDocumentStore()
+const docId = route.params.id as string
 const outline = computed(() => docStore.outline)
 const activeSectionId = computed(() => docStore.activeSectionId)
 
@@ -63,6 +66,7 @@ const addSection = () => {
     children: [],
   }
   docStore.outline.push(newSection)
+  docStore.updateOutlineTree(docId, docStore.outline)
 }
 </script>
 

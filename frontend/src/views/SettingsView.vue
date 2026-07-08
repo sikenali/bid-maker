@@ -53,8 +53,8 @@
             </div>
           </div>
           <div class="content-header-actions">
-            <button class="action-btn-cancel">取消</button>
-            <button class="action-btn-save" :style="{ background: currentNav.color }">保存</button>
+            <button class="action-btn-cancel" @click="goBack">取消</button>
+            <button class="action-btn-save" :style="{ background: currentNav.color }" @click="saveSettings">保存</button>
           </div>
         </div>
 
@@ -66,16 +66,16 @@
                 v-for="t in themes"
                 :key="t.id"
                 class="theme-card"
-                :class="{ 'theme-card-active': selectedTheme === t.id }"
-                @click="selectedTheme = t.id"
+                :class="{ 'theme-card-active': settingsStore.theme === t.id }"
+                @click="settingsStore.setTheme(t.id)"
               >
                 <div class="theme-preview" :style="{ background: t.preview }" />
                 <div class="theme-info">
                   <span class="theme-name">{{ t.name }}</span>
                   <span class="theme-desc">{{ t.desc }}</span>
                 </div>
-                <div class="theme-check" :class="{ 'theme-checked': selectedTheme === t.id }">
-                  <RiCheckLine v-if="selectedTheme === t.id" size="10" color="#fff" />
+                <div class="theme-check" :class="{ 'theme-checked': settingsStore.theme === t.id }">
+                  <RiCheckLine v-if="settingsStore.theme === t.id" size="10" color="#fff" />
                 </div>
               </div>
             </div>
@@ -83,42 +83,44 @@
 
           <!-- 模板设置 -->
           <div v-if="activeNav === 'template'" class="panel">
-            <div class="tpl-tabs">
-              <button
-                v-for="tab in tplTabs"
-                :key="tab"
-                class="tpl-tab"
-                :class="{ 'tpl-tab-active': activeTplTab === tab }"
-                @click="activeTplTab = tab"
-              >{{ tab }}</button>
-            </div>
-            <div class="tpl-shelf">
-              <div
-                v-for="(tpl, idx) in tplCards"
-                :key="idx"
-                class="tpl-card"
-                @click="selectedTplCard = idx"
-              >
-                <div class="tpl-card-cover">
-                  <div class="tpl-card-icon" :style="{ background: tpl.iconBg }">
-                    <component :is="tpl.iconComp" :size="'24'" :color="tpl.iconColor" />
-                  </div>
-                  <span class="tpl-card-cat">{{ tpl.category }}</span>
-                  <span class="tpl-card-label">标准模板</span>
-                </div>
-                <div class="tpl-card-info">
-                  <span class="tpl-card-name">{{ tpl.name }}</span>
-                  <span class="tpl-card-desc">{{ tpl.desc }}</span>
-                </div>
-                <div v-if="selectedTplCard === idx" class="tpl-card-check">
-                  <RiCheckLine size="12" color="#fff" />
-                </div>
+            <div class="settings-card">
+              <div class="tpl-tabs-wrap">
+                <button
+                  v-for="tab in tplTabs"
+                  :key="tab"
+                  class="tpl-tab"
+                  :class="{ 'tpl-tab-active': settingsStore.activeTplTab === tab }"
+                  @click="settingsStore.activeTplTab = tab"
+                >{{ tab }}</button>
               </div>
-              <div class="tpl-card tpl-card-add">
-                <div class="tpl-add-icon">
-                  <RiAddLine size="22" color="#8B7355" />
+              <div class="tpl-shelf">
+                <div
+                  v-for="(tpl, idx) in tplCards"
+                  :key="idx"
+                  class="tpl-card"
+                  @click="selectedTplCard = idx"
+                >
+                  <div class="tpl-card-cover">
+                    <div class="tpl-card-icon" :style="{ background: tpl.iconBg }">
+                      <component :is="tpl.iconComp" :size="'24'" :color="tpl.iconColor" />
+                    </div>
+                    <span class="tpl-card-cat">{{ tpl.category }}</span>
+                    <span class="tpl-card-label">标准模板</span>
+                  </div>
+                  <div class="tpl-card-info">
+                    <span class="tpl-card-name">{{ tpl.name }}</span>
+                    <span class="tpl-card-desc">{{ tpl.desc }}</span>
+                  </div>
+                  <div v-if="selectedTplCard === idx" class="tpl-card-check">
+                    <RiCheckLine size="12" color="#fff" />
+                  </div>
                 </div>
-                <span class="tpl-add-text">添加模板</span>
+                <div class="tpl-card tpl-card-add">
+                  <div class="tpl-add-icon">
+                    <RiAddLine size="22" color="#8B7355" />
+                  </div>
+                  <span class="tpl-add-text">添加模板</span>
+                </div>
               </div>
             </div>
           </div>
@@ -132,45 +134,47 @@
           </div>
 
           <!-- 导出设置 -->
-          <div v-if="activeNav === 'export'" class="panel export-panel">
-            <div class="export-cards">
-              <div class="export-card">
-                <div class="export-card-header">
-                  <div class="export-card-icon" style="background: #E8F0F8">
-                    <RiFileWord2Line size="28" color="#2D6A9F" />
+          <div v-if="activeNav === 'export'" class="panel">
+            <div class="settings-card">
+              <div class="export-cards">
+                <div class="export-card">
+                  <div class="export-card-header">
+                    <div class="export-card-icon" style="background: #E8F0F8">
+                      <RiFileWord2Line size="28" color="#2D6A9F" />
+                    </div>
+                    <div class="export-card-titles">
+                      <span class="export-card-name">Word 格式</span>
+                      <span class="export-card-ext">.docx</span>
+                    </div>
+                    <div class="export-check" :class="{ 'export-checked': settingsStore.exportFormat === 'word' }" @click="settingsStore.setExportFormat('word')">
+                      <RiCheckLine v-if="settingsStore.exportFormat === 'word'" size="14" color="#fff" />
+                    </div>
                   </div>
-                  <div class="export-card-titles">
-                    <span class="export-card-name">Word 格式</span>
-                    <span class="export-card-ext">.docx</span>
-                  </div>
-                  <div class="export-check" :class="{ 'export-checked': exportFormat === 'word' }" @click="exportFormat = 'word'">
-                    <RiCheckLine v-if="exportFormat === 'word'" size="14" color="#fff" />
-                  </div>
-                </div>
-                <div class="export-features">
-                  <div v-for="f in wordFeatures" :key="f" class="export-feature">
-                    <RiCheckLine size="16" color="#2D8A4E" />
-                    <span>{{ f }}</span>
-                  </div>
-                </div>
-              </div>
-              <div class="export-card">
-                <div class="export-card-header">
-                  <div class="export-card-icon" style="background: #F0E8D8">
-                    <RiMarkdownLine size="28" color="#8B7355" />
-                  </div>
-                  <div class="export-card-titles">
-                    <span class="export-card-name">Markdown 格式</span>
-                    <span class="export-card-ext">.md</span>
-                  </div>
-                  <div class="export-check" :class="{ 'export-checked': exportFormat === 'md' }" @click="exportFormat = 'md'">
-                    <RiCheckLine v-if="exportFormat === 'md'" size="14" color="#fff" />
+                  <div class="export-features">
+                    <div v-for="f in wordFeatures" :key="f" class="export-feature">
+                      <RiCheckLine size="16" color="#2D8A4E" />
+                      <span>{{ f }}</span>
+                    </div>
                   </div>
                 </div>
-                <div class="export-features">
-                  <div v-for="f in mdFeatures" :key="f" class="export-feature">
-                    <RiCheckLine size="16" color="#2D8A4E" />
-                    <span>{{ f }}</span>
+                <div class="export-card">
+                  <div class="export-card-header">
+                    <div class="export-card-icon" style="background: #F0E8D8">
+                      <RiMarkdownLine size="28" color="#8B7355" />
+                    </div>
+                    <div class="export-card-titles">
+                      <span class="export-card-name">Markdown 格式</span>
+                      <span class="export-card-ext">.md</span>
+                    </div>
+                    <div class="export-check" :class="{ 'export-checked': settingsStore.exportFormat === 'md' }" @click="settingsStore.setExportFormat('md')">
+                      <RiCheckLine v-if="settingsStore.exportFormat === 'md'" size="14" color="#fff" />
+                    </div>
+                  </div>
+                  <div class="export-features">
+                    <div v-for="f in mdFeatures" :key="f" class="export-feature">
+                      <RiCheckLine size="16" color="#2D8A4E" />
+                      <span>{{ f }}</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -213,8 +217,8 @@
 
             <div class="config-panel">
               <div class="config-tabs">
-                <button class="config-tab-selected">模型制造商</button>
-                <button class="config-tab">自定义配置</button>
+                <button class="config-tab-selected" @click="configTab = 'provider'">模型制造商</button>
+                <button class="config-tab" :class="{ 'config-tab-selected': configTab === 'custom' }" @click="configTab = 'custom'">自定义配置</button>
               </div>
               <div class="config-form">
                 <div class="form-field">
@@ -228,15 +232,16 @@
                 <div class="form-field">
                   <label class="form-label">API Key</label>
                   <div class="form-input form-input-row">
-                    <span class="form-key-masked">sk-••••••••••••••••••••••••</span>
-                    <button class="form-key-toggle">
-                      <RiEyeOffLine size="16" color="#8B7355" />
+                    <span class="form-key-masked">{{ settingsStore.apiKeyForm.keyVisible ? settingsStore.apiKeyForm.key || '未设置' : 'sk-••••••••••••••••••••••••' }}</span>
+                    <button class="form-key-toggle" @click="settingsStore.toggleKeyVisibility()">
+                      <RiEyeOffLine v-if="!settingsStore.apiKeyForm.keyVisible" size="16" color="#8B7355" />
+                      <RiEyeLine v-else size="16" color="#8B7355" />
                     </button>
                   </div>
                 </div>
                 <div class="form-actions">
-                  <button class="form-btn-cancel">取消</button>
-                  <button class="form-btn-add">添加</button>
+                  <button class="form-btn-cancel" @click="settingsStore.apiKeyForm = { provider: '', model: '', key: '', keyVisible: false }">取消</button>
+                  <button class="form-btn-add" @click="addApiKeyEntry">添加</button>
                 </div>
               </div>
             </div>
@@ -268,6 +273,7 @@ import {
   RiFileWord2Line,
   RiMarkdownLine,
   RiEyeOffLine,
+  RiEyeLine,
   RiRobotLine,
   RiOpenaiFill,
 } from '@remixicon/vue'
@@ -302,18 +308,15 @@ const navItems: NavItem[] = [
 ]
 
 const activeNav = ref('theme')
-const selectedTheme = ref('light')
-const exportFormat = ref('word')
 const settingsStore = useSettingsStore()
 
 const themes = [
-  { id: 'light', name: '浅色主题', desc: '经典羊皮纸底色', preview: '#FDF6E3' },
-  { id: 'dark', name: '深色主题', desc: '深色护眼模式', preview: '#2C2416' },
-  { id: 'paper', name: '纯白纸', desc: '清爽干净', preview: '#FFFFFF' },
+  { id: 'light' as const, name: '浅色主题', desc: '经典羊皮纸底色', preview: '#FDF6E3' },
+  { id: 'dark' as const, name: '深色主题', desc: '深色护眼模式', preview: '#2C2416' },
+  { id: 'paper' as const, name: '纯白纸', desc: '清爽干净', preview: '#FFFFFF' },
 ]
 
 const tplTabs = ['招标模板', '投标模板', '自定义模板']
-const activeTplTab = ref('招标模板')
 const selectedTplCard = ref(-1)
 
 interface TplCard {
@@ -369,6 +372,25 @@ const foreignModels: ModelItem[] = [
 
 const currentNav = computed(() => navItems.find(i => i.id === activeNav.value)!)
 
+const configTab = ref<'provider' | 'custom'>('provider')
+
+const saveSettings = () => {
+  alert('设置已保存')
+  router.push('/')
+}
+
+const addApiKeyEntry = () => {
+  const form = settingsStore.apiKeyForm
+  if (!form.key.trim()) return
+  settingsStore.addApiKey({
+    id: Date.now().toString(),
+    provider: settingsStore.selectedModel.provider,
+    model: settingsStore.selectedModel.model,
+    modelName: settingsStore.selectedModel.name,
+    key: form.key,
+  })
+}
+
 const indicatorStyle = computed(() => {
   const idx = navItems.findIndex(i => i.id === activeNav.value)
   const itemHeight = 56
@@ -379,7 +401,6 @@ const indicatorStyle = computed(() => {
     background: currentNav.value.color,
   }
 })
-
 </script>
 
 <style scoped>
@@ -481,7 +502,7 @@ const indicatorStyle = computed(() => {
 }
 
 .sidebar-header {
-  padding: 20px 24px 16px;
+  padding: 20px 24px 20px;
 }
 
 .sidebar-title {
@@ -577,7 +598,7 @@ const indicatorStyle = computed(() => {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  background: #FDF6E3;
+  background: #EAE5D9;
 }
 
 .content-header {
@@ -736,8 +757,15 @@ const indicatorStyle = computed(() => {
   background: #C23B22;
 }
 
+.settings-card {
+  background: #F5EFE0;
+  border: 0.7px solid #E0D5C0;
+  border-radius: 16px;
+  padding: 32px;
+}
+
 /* ── Template Tabs ── */
-.tpl-tabs {
+.tpl-tabs-wrap {
   display: flex;
   gap: 4px;
   background: #F0E8D5;
@@ -748,7 +776,7 @@ const indicatorStyle = computed(() => {
 }
 
 .tpl-tab {
-  padding: 8px 24px;
+  padding: 8px 20px;
   border: none;
   border-radius: 8px;
   font-size: 13px;
@@ -756,12 +784,23 @@ const indicatorStyle = computed(() => {
   background: transparent;
   color: #8B7355;
   font-weight: 500;
+  transition: all 0.2s;
+  white-space: nowrap;
 }
 
 .tpl-tab-active {
-  background: #C23B22;
-  color: #fff;
+  background: #fff;
+  color: #3D2B1F;
   font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.tpl-tab:hover {
+  color: #5C4033;
+}
+
+.tpl-tab-active:hover {
+  color: #3D2B1F;
 }
 
 /* ── Template Shelf ── */

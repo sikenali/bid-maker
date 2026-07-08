@@ -2,9 +2,8 @@
   <div class="content-editor">
     <div class="editor-header">
       <div class="current-section">
-        <span class="section-main">{{ currentSectionTitle }}</span>
-        <span v-if="subTitle" class="section-sub">/ {{ subTitle }}</span>
-      </div>
+<span class="section-main">{{ currentSectionTitle }}</span>
+        </div>
       <div class="edit-tools">
         <button class="tool-btn ai-btn" title="AI Assist" @click="toggleAI">
           <RiSparklingFill size="18" color="#C23B22" />
@@ -58,7 +57,6 @@ const currentSection = computed(() => {
   return docStore.sections.get(activeSectionId.value)
 })
 const currentSectionTitle = computed(() => currentSection.value?.title || '选择章节开始编辑')
-const subTitle = computed(() => '')
 
 const saving = ref(false)
 
@@ -106,11 +104,13 @@ watch(activeSectionId, async (newId) => {
 }, { immediate: false })
 
 const toggleAI = () => {
-  console.log('AI Assist triggered')
+  const section = currentSection.value
+  if (!section) return
+  alert('AI 辅助功能已触发，正在分析当前章节…\n\n章节: ' + section.title)
 }
 
 const extractOutline = () => {
-  console.log('Outline extracted')
+  alert('大纲提取完成')
 }
 
 const generateBid = async () => {

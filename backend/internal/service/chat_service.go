@@ -55,7 +55,9 @@ func (s *ChatService) Chat(ctx context.Context, req ChatRequest, doc *model.Docu
 
 	model := req.Model
 	if model == "" {
-		model = client.(*OpenAIProvider).model
+		if p, ok := client.(*OpenAIProvider); ok {
+			model = p.model
+		}
 	}
 
 	reply, err := client.Chat(ctx, messages, model)

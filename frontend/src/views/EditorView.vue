@@ -11,7 +11,7 @@
         </div>
       </div>
       <div class="nav-actions">
-        <button class="nav-btn" title="帮助">
+        <button class="nav-btn" title="帮助" @click="showHelp">
           <span class="nav-btn-content">
             <RiQuestionLine size="20" />
             <span class="nav-btn-label">帮助</span>
@@ -59,9 +59,14 @@ const docStore = useDocumentStore()
 
 const goSettings = () => router.push('/settings')
 const goHome = () => router.push('/')
+const showHelp = () => alert('文制星 - 标书智能生成工具\n\n编辑大纲 → AI辅助写作 → 导出标书')
 
 onMounted(() => {
-  docStore.loadOutline(props.id)
+  try {
+    docStore.loadOutline(props.id)
+  } catch (err) {
+    console.error('Failed to load outline:', err)
+  }
 })
 
 const handleSelectSection = (sectionId: string) => {
@@ -131,7 +136,7 @@ const handleSelectSection = (sectionId: string) => {
 }
 
 .nav-btn {
-  width: 44px;
+  width: 40px;
   height: 40px;
   border-radius: 8px;
   background: #F5EFE0;

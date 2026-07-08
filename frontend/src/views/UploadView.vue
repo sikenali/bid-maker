@@ -11,7 +11,7 @@
         </div>
       </div>
       <div class="nav-actions">
-        <button class="nav-btn" title="帮助">
+        <button class="nav-btn" title="帮助" @click="showHelp">
           <span class="nav-btn-content">
             <RiQuestionLine size="20" />
             <span class="nav-btn-label">帮助</span>
@@ -90,6 +90,7 @@ const uploadProgress = ref(0)
 
 const goHome = () => router.push('/')
 const goSettings = () => router.push('/settings')
+const showHelp = () => alert('文制星 - 标书智能生成工具\n\n上传招标文件 → 编辑大纲内容 → AI辅助写作 → 导出标书')
 
 const triggerUpload = () => fileInput.value?.click()
 
@@ -194,7 +195,7 @@ const onDrop = (e: DragEvent) => {
 }
 
 .nav-btn {
-  width: 44px;
+  width: 40px;
   height: 40px;
   border-radius: 8px;
   background: #F5EFE0;
@@ -324,7 +325,7 @@ const onDrop = (e: DragEvent) => {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 12px 32px;
+  padding: 12px 24px;
   border: none;
   border-radius: 8px;
   background: #C23B22;
