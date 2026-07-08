@@ -40,7 +40,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
   const selectedModelId = ref('gpt4o')
   const theme = ref<'light' | 'dark' | 'paper'>('light')
-  const exportFormat = ref<'word'>('word')
+  const exportFormat = ref<'word' | 'md'>('word')
   const activeTplTab = ref('招标模板')
 
   const selectedModel = computed(() =>
@@ -78,7 +78,7 @@ export const useSettingsStore = defineStore('settings', () => {
     theme.value = t
   }
 
-  function setExportFormat(f: 'word') {
+  function setExportFormat(f: 'word' | 'md') {
     exportFormat.value = f
   }
 

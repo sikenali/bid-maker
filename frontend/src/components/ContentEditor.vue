@@ -37,6 +37,7 @@
 import { ref, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useDocumentStore } from '../stores/documentStore'
+import { useSettingsStore } from '../stores/settingsStore'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import {
@@ -49,6 +50,7 @@ import { exportDocument } from '../api/client'
 
 const route = useRoute()
 const docStore = useDocumentStore()
+const settingsStore = useSettingsStore()
 const docId = computed(() => route.params.id as string)
 
 const activeSectionId = computed(() => docStore.activeSectionId)
@@ -115,11 +117,13 @@ const extractOutline = () => {
 
 const generateBid = async () => {
   try {
-    const res = await exportDocument(docId.value)
+    const fmt = settingsStore.exportFormat
+    const res = await exportDocument(docId.value, fmt)
     const url = window.URL.createObjectURL(new Blob([res.data]))
     const link = document.createElement('a')
+    const filename = fmt === 'md' ? 'bid-document.md' : 'bid-document.docx'
     link.href = url
-    link.setAttribute('download', 'bid-document.docx')
+    link.setAttribute('download', filename)
     document.body.appendChild(link)
     link.click()
     link.remove()

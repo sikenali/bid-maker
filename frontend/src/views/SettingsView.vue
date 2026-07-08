@@ -61,21 +61,37 @@
         <div class="content-scroll">
           <!-- 主题设置 -->
           <div v-if="activeNav === 'theme'" class="panel">
-            <div class="theme-grid">
+            <div class="theme-page-title">主题设置</div>
+            <div class="theme-page-desc">选择你喜欢的界面风格</div>
+            <div class="theme-cards-row">
               <div
                 v-for="t in themes"
                 :key="t.id"
-                class="theme-card"
-                :class="{ 'theme-card-active': settingsStore.theme === t.id }"
+                class="theme-card-new"
+                :class="{ 'theme-card-selected': settingsStore.theme === t.id }"
                 @click="settingsStore.setTheme(t.id)"
               >
-                <div class="theme-preview" :style="{ background: t.preview }" />
-                <div class="theme-info">
-                  <span class="theme-name">{{ t.name }}</span>
-                  <span class="theme-desc">{{ t.desc }}</span>
+                <div class="theme-preview-area" :style="{ background: t.previewBg }">
+                  <div class="theme-preview-nav" :style="{ background: t.navBg }">
+                    <div class="preview-logo" :style="{ background: t.logoBg }" />
+                    <span class="preview-brand" :style="{ color: t.brandColor }">文制星</span>
+                  </div>
+                  <div class="theme-preview-body">
+                    <div class="preview-sidebar" :style="{ background: t.sidebarBg }" />
+                    <div class="preview-content">
+                      <div class="preview-card" :style="{ background: t.card1Bg }" />
+                      <div class="preview-card-sm" :style="{ background: t.card2Bg }" />
+                    </div>
+                  </div>
                 </div>
-                <div class="theme-check" :class="{ 'theme-checked': settingsStore.theme === t.id }">
-                  <RiCheckLine v-if="settingsStore.theme === t.id" size="10" color="#fff" />
+                <div class="theme-info-area">
+                  <div class="theme-info-texts">
+                    <span class="theme-info-name" :style="{ color: t.textColor }">{{ t.name }}</span>
+                    <span class="theme-info-desc">{{ t.desc }}</span>
+                  </div>
+                  <div class="theme-check-circle" :class="{ 'theme-checked-circle': settingsStore.theme === t.id }">
+                    <RiCheckLine v-if="settingsStore.theme === t.id" size="14" color="#fff" />
+                  </div>
                 </div>
               </div>
             </div>
@@ -135,8 +151,14 @@
 
           <!-- 导出设置 -->
           <div v-if="activeNav === 'export'" class="panel">
-            <div class="settings-card">
-              <div class="export-card">
+            <div class="export-page-title">导出设置</div>
+            <div class="export-page-desc">配置标书导出的默认格式</div>
+            <div class="export-cards-row">
+              <div
+                class="export-card-item"
+                :class="{ 'export-card-selected': settingsStore.exportFormat === 'word' }"
+                @click="settingsStore.setExportFormat('word')"
+              >
                 <div class="export-card-header">
                   <div class="export-card-icon" style="background: #E8F0F8">
                     <RiFileWord2Line size="28" color="#2D6A9F" />
@@ -145,12 +167,36 @@
                     <span class="export-card-name">Word 格式</span>
                     <span class="export-card-ext">.docx</span>
                   </div>
-                  <div class="export-check export-checked">
-                    <RiCheckLine size="14" color="#fff" />
+                  <div class="export-check" :class="{ 'export-checked': settingsStore.exportFormat === 'word' }">
+                    <RiCheckLine v-if="settingsStore.exportFormat === 'word'" size="18" color="#fff" />
                   </div>
                 </div>
                 <div class="export-features">
                   <div v-for="f in wordFeatures" :key="f" class="export-feature">
+                    <RiCheckLine size="16" color="#2D8A4E" />
+                    <span>{{ f }}</span>
+                  </div>
+                </div>
+              </div>
+              <div
+                class="export-card-item"
+                :class="{ 'export-card-selected': settingsStore.exportFormat === 'md' }"
+                @click="settingsStore.setExportFormat('md')"
+              >
+                <div class="export-card-header">
+                  <div class="export-card-icon" style="background: #F0E8D8">
+                    <RiMarkdownLine size="28" color="#8B7355" />
+                  </div>
+                  <div class="export-card-titles">
+                    <span class="export-card-name">Markdown 格式</span>
+                    <span class="export-card-ext">.md</span>
+                  </div>
+                  <div class="export-check" :class="{ 'export-checked': settingsStore.exportFormat === 'md' }">
+                    <RiCheckLine v-if="settingsStore.exportFormat === 'md'" size="18" color="#fff" />
+                  </div>
+                </div>
+                <div class="export-features">
+                  <div v-for="f in mdFeatures" :key="f" class="export-feature">
                     <RiCheckLine size="16" color="#2D8A4E" />
                     <span>{{ f }}</span>
                   </div>
@@ -195,22 +241,30 @@
 
             <div class="config-panel">
               <div class="config-tabs">
-                <button class="config-tab-selected" @click="configTab = 'provider'">模型制造商</button>
+                <button class="config-tab" :class="{ 'config-tab-selected': configTab === 'provider' }" @click="configTab = 'provider'">模型制造商</button>
                 <button class="config-tab" :class="{ 'config-tab-selected': configTab === 'custom' }" @click="configTab = 'custom'">自定义配置</button>
               </div>
+
               <div class="config-form">
                 <div class="form-field">
                   <label class="form-label">服务商</label>
-                  <div class="form-input">{{ currentModelConfig.provider }}</div>
+                  <input v-if="configTab === 'custom'" v-model="customProvider" class="form-input" placeholder="例如: OpenAI" />
+                  <div v-else class="form-input">{{ currentModelConfig.provider }}</div>
                 </div>
                 <div class="form-field">
                   <label class="form-label">模型</label>
-                  <div class="form-input">{{ currentModelConfig.model }}</div>
+                  <input v-if="configTab === 'custom'" v-model="customModel" class="form-input" placeholder="例如: gpt-4" />
+                  <div v-else class="form-input">{{ currentModelConfig.model }}</div>
                 </div>
                 <div class="form-field">
                   <label class="form-label">API Key</label>
-                  <div class="form-input form-input-row">
-                    <span class="form-key-masked">{{ settingsStore.apiKeyForm.keyVisible ? settingsStore.apiKeyForm.key || '未设置' : 'sk-••••••••••••••••••••••••' }}</span>
+                  <div class="form-input-row">
+                    <input
+                      v-model="settingsStore.apiKeyForm.key"
+                      :type="settingsStore.apiKeyForm.keyVisible ? 'text' : 'password'"
+                      class="form-input"
+                      placeholder="sk-..."
+                    />
                     <button class="form-key-toggle" @click="settingsStore.toggleKeyVisibility()">
                       <RiEyeOffLine v-if="!settingsStore.apiKeyForm.keyVisible" size="16" color="#8B7355" />
                       <RiEyeLine v-else size="16" color="#8B7355" />
@@ -218,8 +272,21 @@
                   </div>
                 </div>
                 <div class="form-actions">
-                  <button class="form-btn-cancel" @click="settingsStore.apiKeyForm = { provider: '', model: '', key: '', keyVisible: false }">取消</button>
+                  <button class="form-btn-cancel" @click="resetForm">取消</button>
                   <button class="form-btn-add" @click="addApiKeyEntry">添加</button>
+                </div>
+              </div>
+
+              <div v-if="settingsStore.apiKeys.length > 0" class="saved-keys">
+                <span class="saved-keys-title">已保存的密钥</span>
+                <div v-for="key in settingsStore.apiKeys" :key="key.id" class="saved-key-item">
+                  <div class="saved-key-info">
+                    <span class="saved-key-provider">{{ key.provider }}</span>
+                    <span class="saved-key-model">{{ key.model }}</span>
+                  </div>
+                  <button class="saved-key-delete" @click="settingsStore.removeApiKey(key.id)">
+                    <RiDeleteBinLine size="14" color="#C43A31" />
+                  </button>
                 </div>
               </div>
             </div>
@@ -244,11 +311,13 @@ import {
   RiKeyLine,
   RiCheckLine,
   RiAddLine,
+  RiDeleteBinLine,
   RiFileTextLine,
   RiBuildingLine,
   RiServerLine,
   RiCustomerServiceLine,
   RiFileWord2Line,
+  RiMarkdownLine,
   RiEyeOffLine,
   RiEyeLine,
   RiRobotLine,
@@ -288,9 +357,24 @@ const activeNav = ref('theme')
 const settingsStore = useSettingsStore()
 
 const themes = [
-  { id: 'light' as const, name: '浅色主题', desc: '经典羊皮纸底色', preview: '#FDF6E3' },
-  { id: 'dark' as const, name: '深色主题', desc: '深色护眼模式', preview: '#2C2416' },
-  { id: 'paper' as const, name: '纯白纸', desc: '清爽干净', preview: '#FFFFFF' },
+  {
+    id: 'light' as const, name: '羊皮纸', desc: '温润雅致 · 默认主题',
+    previewBg: '#FBF7F0', navBg: '#F5EFE3', logoBg: '#C23B22',
+    brandColor: '#3D2B1F', sidebarBg: '#F5EFE3', card1Bg: '#F0E8D8', card2Bg: '#F5EFE3',
+    textColor: '#C23B22',
+  },
+  {
+    id: 'dark' as const, name: '深色', desc: '深邃护眼 · 夜间模式',
+    previewBg: '#2C2416', navBg: '#3D3224', logoBg: '#C23B22',
+    brandColor: '#E8DCC8', sidebarBg: '#3D3224', card1Bg: '#4A3D2C', card2Bg: '#3D3224',
+    textColor: '#E8DCC8',
+  },
+  {
+    id: 'paper' as const, name: '白纸', desc: '清爽干净 · 极简模式',
+    previewBg: '#FFFFFF', navBg: '#F5F5F5', logoBg: '#C23B22',
+    brandColor: '#3D2B1F', sidebarBg: '#F5F5F5', card1Bg: '#F0F0F0', card2Bg: '#F5F5F5',
+    textColor: '#3D2B1F',
+  },
 ]
 
 const tplTabs = ['招标模板', '投标模板', '自定义模板']
@@ -321,6 +405,13 @@ const wordFeatures = [
   '支持目录自动生成',
 ]
 
+const mdFeatures = [
+  '纯文本格式，轻量易读',
+  '适合版本管理与协作',
+  '可快速转换为 HTML/PDF',
+  '兼容各类 Markdown 编辑器',
+]
+
 interface ModelItem {
   id: string
   name: string
@@ -343,22 +434,48 @@ const foreignModels: ModelItem[] = [
 const currentNav = computed(() => navItems.find(i => i.id === activeNav.value)!)
 
 const configTab = ref<'provider' | 'custom'>('provider')
+const customProvider = ref('')
+const customModel = ref('')
 
 const saveSettings = () => {
   alert('设置已保存')
   router.push('/')
 }
 
+const resetForm = () => {
+  settingsStore.apiKeyForm = { provider: '', model: '', key: '', keyVisible: false }
+  customProvider.value = ''
+  customModel.value = ''
+}
+
 const addApiKeyEntry = () => {
-  const form = settingsStore.apiKeyForm
-  if (!form.key.trim()) return
-  settingsStore.addApiKey({
-    id: Date.now().toString(),
-    provider: settingsStore.selectedModel.provider,
-    model: settingsStore.selectedModel.model,
-    modelName: settingsStore.selectedModel.name,
-    key: form.key,
-  })
+  const key = settingsStore.apiKeyForm.key.trim()
+  if (!key) {
+    alert('请输入 API Key')
+    return
+  }
+  if (configTab.value === 'custom') {
+    if (!customProvider.value.trim() || !customModel.value.trim()) {
+      alert('请填写服务商和模型名称')
+      return
+    }
+    settingsStore.addApiKey({
+      id: Date.now().toString(),
+      provider: customProvider.value.trim(),
+      model: customModel.value.trim(),
+      modelName: customModel.value.trim(),
+      key: key,
+    })
+  } else {
+    settingsStore.addApiKey({
+      id: Date.now().toString(),
+      provider: settingsStore.selectedModel.provider,
+      model: settingsStore.selectedModel.model,
+      modelName: settingsStore.selectedModel.name,
+      key: key,
+    })
+  }
+  resetForm()
 }
 
 onMounted(() => {
@@ -656,78 +773,135 @@ const indicatorStyle = computed(() => {
 }
 
 /* ── Theme Settings ── */
-.theme-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-  padding: 32px;
-  background: #F5EFE0;
-  border: 0.7px solid #E0D5C0;
-  border-radius: 16px;
-}
-
-.theme-card {
-  background: #fff;
-  border-radius: 12px;
-  padding: 16px;
-  text-align: center;
-  cursor: pointer;
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  aspect-ratio: 1;
-  transition: box-shadow 0.2s;
-}
-
-.theme-card:hover {
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-}
-
-.theme-card-active {
-  box-shadow: 0 8px 24px rgba(194,59,34,0.18);
-}
-
-.theme-preview {
-  width: 60px;
-  height: 60px;
-  border-radius: 8px;
-  border: 1px solid #E0D5C0;
-  margin-bottom: 8px;
-}
-
-.theme-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.theme-name {
-  font-size: 13px;
+.theme-page-title {
+  font-size: 24px;
   font-weight: 700;
   color: #3D2B1F;
+  margin-bottom: 4px;
 }
 
-.theme-desc {
-  font-size: 11px;
-  color: #8B7355;
+.theme-page-desc {
+  font-size: 14px;
+  color: #9B8C7C;
+  margin-bottom: 32px;
 }
 
-.theme-check {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 16px;
-  height: 16px;
+.theme-cards-row {
+  display: flex;
+  gap: 24px;
+}
+
+.theme-card-new {
+  flex: 1;
+  background: #fff;
+  border-radius: 16px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.theme-card-new:hover {
+  border-color: #E0D5C0;
+}
+
+.theme-card-selected {
+  border-color: #C23B22;
+  box-shadow: 0 4px 20px rgba(196, 61, 61, 0.15);
+}
+
+.theme-preview-area {
+  height: 200px;
+  display: flex;
+  flex-direction: column;
+}
+
+.theme-preview-nav {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  flex-shrink: 0;
+}
+
+.preview-logo {
+  width: 21px;
+  height: 20px;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+.preview-brand {
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.theme-preview-body {
+  flex: 1;
+  display: flex;
+}
+
+.preview-sidebar {
+  width: 51px;
+  flex-shrink: 0;
+}
+
+.preview-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+}
+
+.preview-card {
+  height: 60px;
+  border-radius: 8px;
+}
+
+.preview-card-sm {
+  height: 40px;
+  border-radius: 8px;
+}
+
+.theme-info-area {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: #fff;
+}
+
+.theme-info-texts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.theme-info-name {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.theme-info-desc {
+  font-size: 12px;
+  color: #9B8C7C;
+}
+
+.theme-check-circle {
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   background: #D4C4A8;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: background 0.2s;
+  flex-shrink: 0;
 }
 
-.theme-checked {
+.theme-checked-circle {
   background: #C23B22;
 }
 
@@ -904,19 +1078,44 @@ const indicatorStyle = computed(() => {
 }
 
 /* ── Export Settings ── */
-.export-cards {
+.export-page-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #3D2B1F;
+  margin-bottom: 4px;
+}
+
+.export-page-desc {
+  font-size: 14px;
+  color: #9B8C7C;
+  margin-bottom: 32px;
+}
+
+.export-cards-row {
   display: flex;
   gap: 24px;
 }
 
-.export-card {
+.export-card-item {
   flex: 1;
   background: #fff;
   border-radius: 16px;
-  padding: 24px;
+  padding: 32px;
   display: flex;
   flex-direction: column;
   gap: 24px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.export-card-item:hover {
+  border-color: #E0D5C0;
+}
+
+.export-card-selected {
+  border-color: #C23B22;
+  box-shadow: 0 4px 20px rgba(196, 61, 61, 0.1);
 }
 
 .export-card-header {
@@ -961,7 +1160,6 @@ const indicatorStyle = computed(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
   transition: background 0.2s;
   flex-shrink: 0;
 }
@@ -982,6 +1180,10 @@ const indicatorStyle = computed(() => {
   gap: 8px;
   font-size: 13px;
   color: #3D2B1F;
+}
+
+.export-feature svg {
+  flex-shrink: 0;
 }
 
 /* ── API Key (Model List + Config Form) ── */
@@ -1134,19 +1336,25 @@ const indicatorStyle = computed(() => {
   padding: 10px 12px;
   font-size: 13px;
   color: #3D2B1F;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.form-input:focus {
+  border-color: #6366F1;
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.2);
 }
 
 .form-input-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 0;
+  flex: 1;
   position: relative;
 }
 
-.form-key-masked {
-  font-size: 13px;
-  color: #3D2B1F;
-  font-family: monospace;
+.form-input-row .form-input {
+  padding-right: 36px;
 }
 
 .form-key-toggle {
@@ -1156,12 +1364,78 @@ const indicatorStyle = computed(() => {
   padding: 0;
   display: flex;
   align-items: center;
+  justify-content: center;
   width: 24px;
   height: 24px;
   position: absolute;
   right: 8px;
   top: 50%;
   transform: translateY(-50%);
+  border-radius: 4px;
+}
+
+.form-key-toggle:hover {
+  background: rgba(194, 59, 34, 0.05);
+}
+
+/* ── Saved Keys ── */
+.saved-keys {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.saved-keys-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #8B7355;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 12px 0 4px;
+}
+
+.saved-key-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: #FAFAF5;
+  border: 0.7px solid #E0D5C0;
+  border-radius: 8px;
+}
+
+.saved-key-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.saved-key-provider {
+  font-size: 13px;
+  font-weight: 600;
+  color: #3D2B1F;
+}
+
+.saved-key-model {
+  font-size: 11px;
+  color: #8B7355;
+}
+
+.saved-key-delete {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.saved-key-delete:hover {
+  background: rgba(196, 58, 49, 0.08);
 }
 
 .form-key-toggle:hover {

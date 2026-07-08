@@ -16,7 +16,7 @@ export const getOutline = (docId: string) => api.get(`/document/${docId}/outline
 export const updateOutline = (docId: string, outline: any) => api.put(`/document/${docId}/outline`, outline)
 export const getSection = (docId: string, sectionId: string) => api.get(`/document/${docId}/section/${sectionId}`)
 export const saveSection = (docId: string, sectionId: string, content: string) => api.put(`/document/${docId}/section/${sectionId}`, { content })
-export const exportDocument = (docId: string) => api.post(`/document/${docId}/export`, null, {
+export const exportDocument = (docId: string, format?: string) => api.post(`/document/${docId}/export`, { format }, {
   responseType: 'blob',
 })
 export const sendChat = (data: any) => api.post('/chat', data)

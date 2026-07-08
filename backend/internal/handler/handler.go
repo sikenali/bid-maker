@@ -165,6 +165,19 @@ func (h *Handler) ExportDocument(c *gin.Context) {
 		return
 	}
 
+	var req struct {
+		Format string `json:"format"`
+	}
+	c.ShouldBindJSON(&req)
+
+	if req.Format == "md" {
+		data := h.docxService.GenerateMarkdown(doc)
+		c.Header("Content-Type", "text/markdown; charset=utf-8")
+		c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s.md", doc.Title))
+		c.Data(http.StatusOK, "text/markdown; charset=utf-8", data)
+		return
+	}
+
 	data, err := h.docxService.GenerateDocument(doc)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to generate docx: %v", err)})

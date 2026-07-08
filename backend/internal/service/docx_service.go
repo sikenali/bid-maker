@@ -281,6 +281,26 @@ func (s *DocxService) buildRels() string {
 		`</Relationships>`
 }
 
+func (s *DocxService) GenerateMarkdown(doc *model.Document) []byte {
+	var b strings.Builder
+	b.WriteString("# " + doc.Title + "\n\n")
+	for _, sec := range doc.Outline {
+		s.writeSectionMarkdown(&b, &sec, sec.Level)
+	}
+	return []byte(b.String())
+}
+
+func (s *DocxService) writeSectionMarkdown(b *strings.Builder, sec *model.Section, level int) {
+	prefix := strings.Repeat("#", level)
+	b.WriteString(prefix + " " + sec.Title + "\n\n")
+	if sec.Content != "" {
+		b.WriteString(sec.Content + "\n\n")
+	}
+	for i := range sec.Children {
+		s.writeSectionMarkdown(b, &sec.Children[i], level+1)
+	}
+}
+
 func NowUTC() time.Time {
 	return time.Now().UTC()
 }
