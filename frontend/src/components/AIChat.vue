@@ -8,10 +8,11 @@
         <span class="header-title">AI 助手</span>
       </div>
       <div class="model-select-wrap">
-        <select v-model="selectedModelId" class="model-select" @change="onModelChange">
-          <option v-for="m in settingsStore.allModels" :key="m.id" :value="m.id">{{ m.name }}</option>
-        </select>
-        <RiArrowDownSLine size="14" color="#8B7355" class="select-arrow" />
+        <ModelSelect
+          v-model="selectedModelId"
+          :items="settingsStore.allModels"
+          @update:model-value="onModelChange"
+        />
       </div>
     </div>
     <div class="chat-messages" ref="messagesRef">
@@ -60,10 +61,10 @@ import { useRoute } from 'vue-router'
 import { useChatStore } from '../stores/chatStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useDocumentStore } from '../stores/documentStore'
+import ModelSelect from './ModelSelect.vue'
 import {
   RiSparklingFill,
   RiSendPlaneFill,
-  RiArrowDownSLine,
 } from '@remixicon/vue'
 
 const chatStore = useChatStore()
@@ -76,8 +77,8 @@ const messagesRef = ref<HTMLElement>()
 
 const selectedModelId = ref(settingsStore.selectedModelId)
 
-const onModelChange = () => {
-  settingsStore.setModel(selectedModelId.value)
+const onModelChange = (id: string) => {
+  settingsStore.setModel(id)
   chatStore.setModel(settingsStore.selectedModel.model)
 }
 
@@ -144,40 +145,6 @@ const scrollToBottom = async () => {
 .model-select-wrap {
   display: flex;
   align-items: center;
-  position: relative;
-}
-
-.model-select {
-  font-size: 11px;
-  color: #3D2B1F;
-  font-weight: 500;
-  background: #F0E8D5;
-  border: 0.7px solid #E0D5C0;
-  border-radius: 8px;
-  padding: 4px 22px 4px 8px;
-  cursor: pointer;
-  outline: none;
-  appearance: none;
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  transition: border-color 0.2s, background 0.2s;
-  min-width: 72px;
-}
-
-.model-select:hover {
-  background: #E8DCC8;
-  border-color: #D4C4A8;
-}
-
-.model-select:focus {
-  border-color: #C23B22;
-  background: #FFF;
-}
-
-.select-arrow {
-  position: absolute;
-  right: 6px;
-  pointer-events: none;
 }
 
 .model-label {

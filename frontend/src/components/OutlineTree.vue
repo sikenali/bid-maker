@@ -9,33 +9,52 @@
         <RiAddLine size="16" color="#8B7355" />
       </button>
     </div>
-    <div class="outline-list">
+    <div class="outline-list" ref="listRef" :class="{ 'menu-open': openMenuId !== null }">
+      <div class="outline-indicator" :style="indicatorStyle" />
       <template v-for="section in outline" :key="section.id">
         <div
+          :data-id="section.id"
           class="outline-item"
           :class="{ active: section.id === activeSectionId }"
-          @click="$emit('select', section.id)"
+          @click="selectSection(section.id)"
         >
-          <RiFileTextFill v-if="section.id === activeSectionId" size="16" color="#C23B22" />
-          <RiFileTextLine v-else size="16" color="#8B7355" />
+          <RiFileTextFill v-if="section.id === activeSectionId" size="20" color="#C23B22" />
+          <RiFileTextLine v-else size="20" color="#8B7355" />
           <span class="item-title">{{ section.title }}</span>
-          <span class="item-actions">
-            <RiAddBoxLine size="14" color="#8B7355" class="action-icon" @click.stop="showAddMenu(section.id)" />
-            <RiDeleteBinLine size="14" color="#C43A31" class="action-icon" @click.stop="removeSection(section.id)" />
+          <span class="menu-wrapper">
+            <button class="more-btn" :class="{ active: openMenuId === section.id }" @click.stop="toggleMenu(section.id)">
+              <RiMore2Fill size="16" color="#8B7355" />
+            </button>
+            <div v-if="openMenuId === section.id" class="context-menu" @click.stop>
+              <div class="menu-arrow" />
+              <button class="menu-item" :class="{ disabled: section.level >= 9 }" @click.stop="demoteLevel(section.id)">降级</button>
+              <button class="menu-item" @click.stop="addChild(section.id)">新增</button>
+              <div class="menu-divider" />
+              <button class="menu-item menu-item-danger" @click.stop="removeSection(section.id)">删除</button>
+            </div>
           </span>
         </div>
         <div
           v-for="child in section.children"
           :key="child.id"
+          :data-id="child.id"
           class="outline-subitem"
           :class="{ active: child.id === activeSectionId }"
-          @click="$emit('select', child.id)"
+          @click="selectSection(child.id)"
         >
           <RiArrowRightSLine size="14" color="#9B8C7C" />
           <span class="subitem-title">{{ child.title }}</span>
-          <span class="item-actions">
-            <RiAddBoxLine size="14" color="#8B7355" class="action-icon" @click.stop="showAddMenu(child.id)" />
-            <RiDeleteBinLine size="14" color="#C43A31" class="action-icon" @click.stop="removeSection(child.id)" />
+          <span class="menu-wrapper">
+            <button class="more-btn" :class="{ active: openMenuId === child.id }" @click.stop="toggleMenu(child.id)">
+              <RiMore2Fill size="14" color="#8B7355" />
+            </button>
+            <div v-if="openMenuId === child.id" class="context-menu" @click.stop>
+              <div class="menu-arrow" />
+              <button class="menu-item" :class="{ disabled: child.level >= 9 }" @click.stop="demoteLevel(child.id)">降级</button>
+              <button class="menu-item" @click.stop="addChild(child.id)">新增</button>
+              <div class="menu-divider" />
+              <button class="menu-item menu-item-danger" @click.stop="removeSection(child.id)">删除</button>
+            </div>
           </span>
         </div>
       </template>
@@ -44,15 +63,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { useDocumentStore } from '../stores/documentStore'
 import type { Section } from '../stores/documentStore'
 import {
   RiListCheck,
   RiAddLine,
-  RiAddBoxLine,
-  RiDeleteBinLine,
+  RiMore2Fill,
   RiFileTextFill,
   RiFileTextLine,
   RiArrowRightSLine,
@@ -63,8 +81,76 @@ const docStore = useDocumentStore()
 const docId = route.params.id as string
 const outline = computed(() => docStore.outline)
 const activeSectionId = computed(() => docStore.activeSectionId)
+const openMenuId = ref<string | null>(null)
+const listRef = ref<HTMLElement>()
+const indicatorTop = ref(0)
+const indicatorHeight = ref(0)
 
 const emit = defineEmits<{ select: [id: string] }>()
+
+const closeMenu = () => { openMenuId.value = null }
+
+const toggleMenu = (id: string) => {
+  if (openMenuId.value === id) {
+    openMenuId.value = null
+    return
+  }
+  openMenuId.value = id
+  nextTick(() => {
+    const list = listRef.value
+    if (!list) return
+    const item = list.querySelector(`[data-id="${id}"]`)
+    if (!item) return
+    const firstBtn = item.querySelector('.menu-item') as HTMLElement | null
+    if (firstBtn) firstBtn.focus()
+  })
+}
+
+const handleMenuKeydown = (e: KeyboardEvent) => {
+  if (!openMenuId.value) return
+  if (e.key === 'Escape') {
+    closeMenu()
+    return
+  }
+  if (e.key === 'Tab') {
+    e.preventDefault()
+    const list = listRef.value
+    if (!list) return
+    const item = list.querySelector(`[data-id="${openMenuId.value}"]`)
+    if (!item) return
+    const buttons = item.querySelectorAll('.menu-item') as NodeListOf<HTMLElement>
+    if (buttons.length === 0) return
+    const active = document.activeElement
+    let idx = Array.from(buttons).findIndex(b => b === active)
+    if (e.shiftKey) {
+      idx = idx <= 0 ? buttons.length - 1 : idx - 1
+    } else {
+      idx = idx >= buttons.length - 1 ? 0 : idx + 1
+    }
+    buttons[idx].focus()
+  }
+}
+
+const selectSection = (id: string) => {
+  emit('select', id)
+  nextTick(() => updateIndicator(id))
+}
+
+const updateIndicator = (id: string) => {
+  const list = listRef.value
+  if (!list) return
+  const target = list.querySelector(`[data-id="${id}"]`) as HTMLElement | null
+  if (!target) return
+  const listRect = list.getBoundingClientRect()
+  const itemRect = target.getBoundingClientRect()
+  indicatorTop.value = itemRect.top - listRect.top + list.scrollTop
+  indicatorHeight.value = itemRect.height
+}
+
+const indicatorStyle = computed(() => ({
+  top: `${indicatorTop.value}px`,
+  height: `${indicatorHeight.value}px`,
+}))
 
 const saveOutline = () => {
   docStore.updateOutlineTree(docId, docStore.outline)
@@ -80,8 +166,17 @@ const addTopSection = () => {
     children: [],
   }
   docStore.outline.push(newSection)
-  emit('select', newSection.id)
+  selectSection(newSection.id)
+  closeMenu()
   saveOutline()
+}
+
+const demoteLevel = (sectionId: string) => {
+  const section = findSection(docStore.outline, sectionId)
+  if (!section || section.level >= 9) return
+  section.level++
+  saveOutline()
+  closeMenu()
 }
 
 const addChild = (parentId: string) => {
@@ -96,40 +191,16 @@ const addChild = (parentId: string) => {
     children: [],
   }
   parent.children.push(newSection)
-  emit('select', newSection.id)
-  saveOutline()
-}
-
-const addSibling = (sectionId: string) => {
-  const parent = findParent(docStore.outline, sectionId)
-  const newSection: Section = {
-    id: Date.now().toString(),
-    title: '新章节',
-    level: parent ? parent.level : 1,
-    parent_id: parent ? parent.id : '',
-    content: '',
-    children: [],
-  }
-  if (parent) {
-    parent.children.push(newSection)
-  } else {
-    docStore.outline.push(newSection)
-  }
-  emit('select', newSection.id)
+  selectSection(newSection.id)
+  closeMenu()
   saveOutline()
 }
 
 const removeSection = (sectionId: string) => {
   const removed = removeFromTree(docStore.outline, sectionId)
-  if (removed) saveOutline()
-}
-
-const showAddMenu = (sectionId: string) => {
-  const action = window.confirm('添加子大纲点"确定"，添加同级大纲点"取消"')
-  if (action) {
-    addChild(sectionId)
-  } else {
-    addSibling(sectionId)
+  if (removed) {
+    closeMenu()
+    saveOutline()
   }
 }
 
@@ -138,17 +209,6 @@ function findSection(sections: Section[], id: string): Section | null {
     if (s.id === id) return s
     if (s.children.length > 0) {
       const found = findSection(s.children, id)
-      if (found) return found
-    }
-  }
-  return null
-}
-
-function findParent(sections: Section[], id: string): Section | null {
-  for (const s of sections) {
-    if (s.children.some(c => c.id === id)) return s
-    if (s.children.length > 0) {
-      const found = findParent(s.children, id)
       if (found) return found
     }
   }
@@ -167,6 +227,25 @@ function removeFromTree(sections: Section[], id: string): boolean {
   }
   return false
 }
+
+const handleClickOutside = (e: MouseEvent) => {
+  if (openMenuId.value) {
+    const list = listRef.value
+    if (list && list.contains(e.target as Node)) return
+    closeMenu()
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside)
+  document.addEventListener('keydown', handleMenuKeydown)
+  if (activeSectionId.value) nextTick(() => updateIndicator(activeSectionId.value))
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside)
+  document.removeEventListener('keydown', handleMenuKeydown)
+})
 </script>
 
 <style scoped>
@@ -217,27 +296,41 @@ function removeFromTree(sections: Section[], id: string): boolean {
   flex: 1;
   overflow-y: auto;
   padding: 8px 0;
+  position: relative;
+}
+
+.outline-indicator {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  background: rgba(194, 59, 34, 0.15);
+  border-radius: 10px;
+  transition: top 0.35s ease-out, height 0.35s ease-out;
+  pointer-events: none;
+  z-index: 0;
 }
 
 .outline-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
+  gap: 10px;
+  padding: 14px 16px;
   cursor: pointer;
   transition: background 0.15s;
+  position: relative;
+  z-index: 1;
 }
 
 .outline-item:hover {
-  background: rgba(194, 59, 34, 0.04);
+  background: rgba(194, 59, 34, 0.06);
 }
 
 .outline-item.active {
-  background: rgba(194, 59, 34, 0.08);
+  background: transparent;
 }
 
 .item-title {
-  font-size: 13px;
+  font-size: 14px;
   color: #3D2B1F;
   font-weight: 500;
   flex: 1;
@@ -247,50 +340,147 @@ function removeFromTree(sections: Section[], id: string): boolean {
   white-space: nowrap;
 }
 
-.item-actions {
+.more-btn {
+  width: 24px;
+  height: 24px;
+  border: 0.7px solid #E0D5C0;
+  border-radius: 50%;
+  background: #FBF7EF;
+  cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 2px;
+  justify-content: center;
   opacity: 0;
-  transition: opacity 0.15s;
+  transition: opacity 0.15s, background 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
 }
 
-.outline-item:hover .item-actions,
-.outline-subitem:hover .item-actions {
+.outline-item:hover .more-btn,
+.outline-subitem:hover .more-btn {
   opacity: 1;
 }
 
-.action-icon {
-  cursor: pointer;
-  padding: 2px;
-  border-radius: 4px;
-  transition: background 0.15s;
-  flex-shrink: 0;
+.more-btn:hover {
+  background: #F5EFE0;
+  border-color: #D4C4A8;
 }
 
-.action-icon:hover {
-  background: rgba(0, 0, 0, 0.06);
+.more-btn:focus-visible {
+  opacity: 1;
+}
+
+.more-btn.active {
+  opacity: 1;
+  background: #F5EFE0;
+  border-color: #C23B22;
+}
+
+.outline-list.menu-open .more-btn:not(.active) {
+  opacity: 0 !important;
+}
+
+.context-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  background: #fff;
+  border: 0.7px solid #E0D5C0;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  z-index: 200;
+  min-width: 100px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+}
+
+.menu-wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.menu-arrow {
+  position: absolute;
+  top: -5px;
+  right: 14px;
+  left: auto;
+  width: 8px;
+  height: 8px;
+  background: #fff;
+  border-left: 0.7px solid #E0D5C0;
+  border-top: 0.7px solid #E0D5C0;
+  transform: rotate(45deg);
+  z-index: -1;
+}
+
+.menu-item {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 12px;
+  color: #3D2B1F;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+  transition: background 0.1s;
+}
+
+.menu-item:hover {
+  background: rgba(194, 59, 34, 0.06);
+}
+
+.menu-item-danger {
+  color: #C43A31;
+}
+
+.menu-item-danger:hover {
+  background: rgba(196, 58, 49, 0.08);
+}
+
+.menu-item.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.menu-item.disabled:hover {
+  background: transparent;
+}
+
+.menu-divider {
+  height: 1px;
+  background: #E0D5C0;
+  margin: 4px 0;
 }
 
 .outline-subitem {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 16px 6px 40px;
+  gap: 10px;
+  padding: 12px 16px 12px 46px;
   cursor: pointer;
   transition: background 0.15s;
+  position: relative;
+  z-index: 1;
 }
 
 .outline-subitem:hover {
-  background: rgba(194, 59, 34, 0.04);
+  background: rgba(194, 59, 34, 0.06);
 }
 
 .outline-subitem.active {
-  background: rgba(194, 59, 34, 0.08);
+  background: transparent;
 }
 
 .subitem-title {
-  font-size: 12px;
+  font-size: 13px;
   color: #3D2B1F;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>
