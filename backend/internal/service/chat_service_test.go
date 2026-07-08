@@ -12,7 +12,7 @@ func TestBuildOutlineString_WithSections(t *testing.T) {
 		{Title: "Section 1.1", Level: 2},
 		{Title: "Chapter 2", Level: 1},
 	}
-	result := buildOutlineString(sections)
+	result := buildOutlineString(sections, 0)
 	if result == "" {
 		t.Fatal("expected non-empty outline string")
 	}
@@ -22,9 +22,16 @@ func TestBuildOutlineString_WithSections(t *testing.T) {
 }
 
 func TestBuildOutlineString_Empty(t *testing.T) {
-	result := buildOutlineString(nil)
+	result := buildOutlineString(nil, 0)
 	if result != "" {
 		t.Fatal("expected empty outline string for nil input")
+	}
+}
+
+func TestBuildOutlineString_Depth(t *testing.T) {
+	result := buildOutlineString(nil, 2)
+	if result != "" {
+		t.Fatal("expected empty for nil sections")
 	}
 }
 

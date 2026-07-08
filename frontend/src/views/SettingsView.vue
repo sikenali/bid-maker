@@ -136,45 +136,23 @@
           <!-- 导出设置 -->
           <div v-if="activeNav === 'export'" class="panel">
             <div class="settings-card">
-              <div class="export-cards">
-                <div class="export-card">
-                  <div class="export-card-header">
-                    <div class="export-card-icon" style="background: #E8F0F8">
-                      <RiFileWord2Line size="28" color="#2D6A9F" />
-                    </div>
-                    <div class="export-card-titles">
-                      <span class="export-card-name">Word 格式</span>
-                      <span class="export-card-ext">.docx</span>
-                    </div>
-                    <div class="export-check" :class="{ 'export-checked': settingsStore.exportFormat === 'word' }" @click="settingsStore.setExportFormat('word')">
-                      <RiCheckLine v-if="settingsStore.exportFormat === 'word'" size="14" color="#fff" />
-                    </div>
+              <div class="export-card">
+                <div class="export-card-header">
+                  <div class="export-card-icon" style="background: #E8F0F8">
+                    <RiFileWord2Line size="28" color="#2D6A9F" />
                   </div>
-                  <div class="export-features">
-                    <div v-for="f in wordFeatures" :key="f" class="export-feature">
-                      <RiCheckLine size="16" color="#2D8A4E" />
-                      <span>{{ f }}</span>
-                    </div>
+                  <div class="export-card-titles">
+                    <span class="export-card-name">Word 格式</span>
+                    <span class="export-card-ext">.docx</span>
+                  </div>
+                  <div class="export-check export-checked">
+                    <RiCheckLine size="14" color="#fff" />
                   </div>
                 </div>
-                <div class="export-card">
-                  <div class="export-card-header">
-                    <div class="export-card-icon" style="background: #F0E8D8">
-                      <RiMarkdownLine size="28" color="#8B7355" />
-                    </div>
-                    <div class="export-card-titles">
-                      <span class="export-card-name">Markdown 格式</span>
-                      <span class="export-card-ext">.md</span>
-                    </div>
-                    <div class="export-check" :class="{ 'export-checked': settingsStore.exportFormat === 'md' }" @click="settingsStore.setExportFormat('md')">
-                      <RiCheckLine v-if="settingsStore.exportFormat === 'md'" size="14" color="#fff" />
-                    </div>
-                  </div>
-                  <div class="export-features">
-                    <div v-for="f in mdFeatures" :key="f" class="export-feature">
-                      <RiCheckLine size="16" color="#2D8A4E" />
-                      <span>{{ f }}</span>
-                    </div>
+                <div class="export-features">
+                  <div v-for="f in wordFeatures" :key="f" class="export-feature">
+                    <RiCheckLine size="16" color="#2D8A4E" />
+                    <span>{{ f }}</span>
                   </div>
                 </div>
               </div>
@@ -253,7 +231,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSettingsStore } from '../stores/settingsStore'
 import {
@@ -271,7 +249,6 @@ import {
   RiServerLine,
   RiCustomerServiceLine,
   RiFileWord2Line,
-  RiMarkdownLine,
   RiEyeOffLine,
   RiEyeLine,
   RiRobotLine,
@@ -344,13 +321,6 @@ const wordFeatures = [
   '支持目录自动生成',
 ]
 
-const mdFeatures = [
-  '纯文本格式，轻量易读',
-  '适合版本管理与协作',
-  '可快速转换为 HTML/PDF',
-  '兼容各类 Markdown 编辑器',
-]
-
 interface ModelItem {
   id: string
   name: string
@@ -390,6 +360,10 @@ const addApiKeyEntry = () => {
     key: form.key,
   })
 }
+
+onMounted(() => {
+  settingsStore.fetchModels()
+})
 
 const indicatorStyle = computed(() => {
   const idx = navItems.findIndex(i => i.id === activeNav.value)

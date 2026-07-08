@@ -210,6 +210,7 @@ func (h *Handler) Chat(c *gin.Context) {
 		Mode:      req.Mode,
 		SectionID: req.SectionID,
 		History:   req.History,
+		Provider:  req.Provider,
 		Model:     req.Model,
 	}
 	resp, err := chatSvc.Chat(c.Request.Context(), chatReq, doc)

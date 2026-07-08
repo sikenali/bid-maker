@@ -121,7 +121,7 @@ func (s *DocxService) ParseDocument(data []byte) (*model.Document, error) {
 
 func (s *DocxService) extractSections(paras []wPara) []model.Section {
 	var sections []model.Section
-	var parentStack []int
+	var parentStack []*model.Section
 
 	for _, p := range paras {
 		text := strings.TrimSpace(extractText(p.Runs))
@@ -138,23 +138,18 @@ func (s *DocxService) extractSections(paras []wPara) []model.Section {
 				Level: level,
 			}
 
-			for len(parentStack) > 0 {
-				topIdx := parentStack[len(parentStack)-1]
-				if sections[topIdx].Level >= level {
-					parentStack = parentStack[:len(parentStack)-1]
-				} else {
-					break
-				}
+			for len(parentStack) > 0 && parentStack[len(parentStack)-1].Level >= level {
+				parentStack = parentStack[:len(parentStack)-1]
 			}
 
 			if len(parentStack) > 0 {
-				parentIdx := parentStack[len(parentStack)-1]
-				sections[parentIdx].Children = append(sections[parentIdx].Children, section)
+				parent := parentStack[len(parentStack)-1]
+				parent.Children = append(parent.Children, section)
+				parentStack = append(parentStack, &parent.Children[len(parent.Children)-1])
 			} else {
 				sections = append(sections, section)
+				parentStack = append(parentStack, &sections[len(sections)-1])
 			}
-
-			parentStack = append(parentStack, len(sections)-1)
 		} else if len(sections) > 0 {
 			last := findLeaf(&sections[len(sections)-1])
 			last.Content += text + "\n"

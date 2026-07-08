@@ -20,5 +20,6 @@ export const exportDocument = (docId: string) => api.post(`/document/${docId}/ex
   responseType: 'blob',
 })
 export const sendChat = (data: any) => api.post('/chat', data)
+export const getModels = () => api.get('/config/models')
 
 export default api

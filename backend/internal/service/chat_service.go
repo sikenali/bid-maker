@@ -20,6 +20,7 @@ type ChatRequest struct {
 	Mode      string     `json:"mode"`
 	SectionID string     `json:"section_id,omitempty"`
 	History   []Message  `json:"history"`
+	Provider  string     `json:"provider,omitempty"`
 	Model     string     `json:"model,omitempty"`
 }
 
@@ -29,7 +30,7 @@ type ChatResponse struct {
 }
 
 func (s *ChatService) Chat(ctx context.Context, req ChatRequest, doc *model.Document) (*ChatResponse, error) {
-	client, err := s.registry.GetProvider("")
+	client, err := s.registry.GetProvider(req.Provider)
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +41,7 @@ func (s *ChatService) Chat(ctx context.Context, req ChatRequest, doc *model.Docu
 	if req.Mode == "context" && req.SectionID != "" && doc != nil {
 		section := findSectionInOutline(doc.Outline, req.SectionID)
 		if section != nil {
-			contextPrompt := "You are helping write a bid document. Current section: " + section.Title + "\nContent so far: " + section.Content + "\nOutline: " + buildOutlineString(doc.Outline) + "\n\n"
+			contextPrompt := "You are helping write a bid document. Current section: " + section.Title + "\nContent so far: " + section.Content + "\nOutline: " + buildOutlineString(doc.Outline, 0) + "\n\n"
 			messages = append(messages, Message{Role: "system", Content: contextPrompt})
 		}
 	} else {
@@ -68,13 +69,11 @@ func (s *ChatService) Chat(ctx context.Context, req ChatRequest, doc *model.Docu
 	return &ChatResponse{Reply: reply, Model: model}, nil
 }
 
-func buildOutlineString(sections []model.Section) string {
+func buildOutlineString(sections []model.Section, depth int) string {
 	var sb strings.Builder
 	for _, s := range sections {
-		sb.WriteString(strings.Repeat("  ", s.Level-1) + s.Title + "\n")
-		for _, c := range s.Children {
-			sb.WriteString(strings.Repeat("  ", c.Level-1) + c.Title + "\n")
-		}
+		sb.WriteString(strings.Repeat("  ", depth) + s.Title + "\n")
+		sb.WriteString(buildOutlineString(s.Children, depth+1))
 	}
 	return sb.String()
 }
