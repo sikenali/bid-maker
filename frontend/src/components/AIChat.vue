@@ -7,8 +7,11 @@
         </div>
         <span class="header-title">AI 助手</span>
       </div>
-      <div class="model-display">
-        <span class="model-label">{{ settingsStore.selectedModel.name }}</span>
+      <div class="model-select-wrap">
+        <select v-model="selectedModelId" class="model-select" @change="onModelChange">
+          <option v-for="m in settingsStore.allModels" :key="m.id" :value="m.id">{{ m.name }}</option>
+        </select>
+        <RiArrowDownSLine size="14" color="#8B7355" class="select-arrow" />
       </div>
     </div>
     <div class="chat-messages" ref="messagesRef">
@@ -60,6 +63,7 @@ import { useDocumentStore } from '../stores/documentStore'
 import {
   RiSparklingFill,
   RiSendPlaneFill,
+  RiArrowDownSLine,
 } from '@remixicon/vue'
 
 const chatStore = useChatStore()
@@ -70,8 +74,16 @@ const docId = route.params.id as string
 const inputText = ref('')
 const messagesRef = ref<HTMLElement>()
 
+const selectedModelId = ref(settingsStore.selectedModelId)
+
+const onModelChange = () => {
+  settingsStore.setModel(selectedModelId.value)
+  chatStore.setModel(settingsStore.selectedModel.model)
+}
+
 chatStore.setModel(settingsStore.selectedModel.model)
 watch(() => settingsStore.selectedModelId, () => {
+  selectedModelId.value = settingsStore.selectedModelId
   chatStore.setModel(settingsStore.selectedModel.model)
 })
 
@@ -129,13 +141,43 @@ const scrollToBottom = async () => {
   color: #3D2B1F;
 }
 
-.model-display {
+.model-select-wrap {
   display: flex;
   align-items: center;
+  position: relative;
+}
+
+.model-select {
+  font-size: 11px;
+  color: #3D2B1F;
+  font-weight: 500;
   background: #F0E8D5;
+  border: 0.7px solid #E0D5C0;
   border-radius: 8px;
-  padding: 4px 8px;
-  cursor: default;
+  padding: 4px 22px 4px 8px;
+  cursor: pointer;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  transition: border-color 0.2s, background 0.2s;
+  min-width: 72px;
+}
+
+.model-select:hover {
+  background: #E8DCC8;
+  border-color: #D4C4A8;
+}
+
+.model-select:focus {
+  border-color: #C23B22;
+  background: #FFF;
+}
+
+.select-arrow {
+  position: absolute;
+  right: 6px;
+  pointer-events: none;
 }
 
 .model-label {

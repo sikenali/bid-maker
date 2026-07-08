@@ -262,6 +262,7 @@ const generateBid = async () => {
   border-radius: 12px;
   padding: 16px;
   flex-shrink: 0;
+  justify-content: center;
 }
 
 .gen-btn {
