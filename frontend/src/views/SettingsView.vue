@@ -81,9 +81,22 @@
                     <div class="preview-content">
                       <div class="preview-card" :style="{ background: t.card1Bg }" />
                       <div class="preview-card-sm" :style="{ background: t.card2Bg }" />
-                    </div>
-                  </div>
-                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 技能预览模态框 -->
+          <div v-if="showSkillPreview" class="skill-preview-overlay" @click.self="closeSkillPreview">
+            <div class="skill-preview-modal">
+              <div class="skill-preview-header">
+                <span class="skill-preview-title">{{ currentSkillName }}</span>
+                <button class="skill-preview-close" @click="closeSkillPreview">
+                  <RiCloseLine size="18" color="#8B7355" />
+                </button>
+              </div>
+              <pre class="skill-preview-content">{{ currentSkillContent }}</pre>
+            </div>
+          </div>
                 <div class="theme-info-area">
                   <div class="theme-info-texts">
                     <span class="theme-info-name" :style="{ color: t.textColor }">{{ t.name }}</span>
@@ -100,11 +113,7 @@
           <!-- 模板设置 -->
           <div v-if="activeNav === 'template'" class="panel">
             <div class="settings-card">
-              <div v-if="settingsStore.templates.length === 0" class="tpl-empty">
-                <RiFileTextLine size="40" color="#D4C4A8" />
-                <span class="tpl-empty-text">暂无模板，请添加</span>
-              </div>
-              <div v-else class="tpl-shelf">
+              <div class="tpl-shelf">
                 <div
                   v-for="tpl in settingsStore.templates"
                   :key="tpl.id"
@@ -121,13 +130,16 @@
                   </div>
                   <div class="tpl-card-info">
                     <span class="tpl-card-name">{{ tpl.name }}</span>
-                    <span class="tpl-card-desc">{{ tpl.description }}</span>
+                    <span class="tpl-card-desc">{{ tpl.description || '暂无描述' }}</span>
                   </div>
                   <div v-if="settingsStore.selectedTemplateId === tpl.id" class="tpl-card-check">
                     <RiCheckLine size="12" color="#fff" />
                   </div>
+                  <button class="tpl-card-delete-btn" @click.stop="settingsStore.removeTemplate(tpl.id)" title="删除">
+                    <RiDeleteBinLine size="14" color="#C43A31" />
+                  </button>
                 </div>
-                <div class="tpl-card tpl-card-add">
+                <div class="tpl-card tpl-card-add" @click="addTemplate">
                   <div class="tpl-add-icon">
                     <RiAddLine size="22" color="#8B7355" />
                   </div>
@@ -142,27 +154,37 @@
             <div class="settings-card">
               <div class="tpl-shelf">
                 <div
-                  v-for="(skill, idx) in skillCards"
-                  :key="idx"
+                  v-for="(skill, idx) in displaySkills"
+                  :key="skill.id + '-' + idx"
                   class="tpl-card"
                   @click="selectedSkillCard = idx"
                 >
                   <div class="tpl-card-cover">
                     <div class="tpl-card-icon" :style="{ background: skill.iconBg }">
-                      <component :is="skill.iconComp" :size="'24'" :color="skill.iconColor" />
+                      <component :is="skill.iconComp" :size="'24'" color="#ffffff" />
                     </div>
                     <span class="tpl-card-cat">{{ skill.category }}</span>
-                    <span class="tpl-card-label">写作技能</span>
+                    <label class="toggle-switch-compact" @click.stop="toggleSkillDisplay(skill.id)">
+                      <input type="checkbox" :checked="isSkillVisible(skill)" />
+                      <span class="toggle-slider"></span>
+                    </label>
                   </div>
                   <div class="tpl-card-info">
                     <span class="tpl-card-name">{{ skill.name }}</span>
-                    <span class="tpl-card-desc">{{ skill.desc }}</span>
+                    <span class="tpl-card-desc" :title="skill.desc">{{ skill.desc }}</span>
                   </div>
-                  <div v-if="selectedSkillCard === idx" class="tpl-card-check">
-                    <RiCheckLine size="12" color="#fff" />
+                  <div class="tpl-card-preview" @click.stop="openSkill(skill)" :title="skill.path ? '打开技能文件' : '预览技能'">
+                    <RiFileTextLine size="20" color="#8B7355" />
                   </div>
                 </div>
-                <div class="tpl-card tpl-card-add">
+                <div v-if="hasMoreSkills" class="tpl-card tpl-card-more" @click="showMoreSkills = true">
+                  <div class="tpl-add-icon">
+                    <RiArrowDownSLine size="22" color="#8B7355" />
+                  </div>
+                  <span class="tpl-add-text">更多技能 ({{ visibleSkillsCount }})</span>
+                </div>
+                <input type="file" accept=".md" ref="skillFileInput" style="display:none" @change="handleSkillFileSelect" />
+                <div class="tpl-card tpl-card-add" @click="openAddSkillPicker">
                   <div class="tpl-add-icon">
                     <RiAddLine size="22" color="#8B7355" />
                   </div>
@@ -230,55 +252,60 @@
 
           <!-- API Key -->
           <div v-if="activeNav === 'apikey'" class="panel api-full-panel">
-            <div class="model-list">
-              <span class="model-section">国内模型</span>
-              <div
-                v-for="m in domesticModels"
-                :key="m.id"
-                class="model-item"
-                :class="{ 'model-item-active': settingsStore.selectedModelId === m.id }"
-                @click="settingsStore.selectedModelId = m.id"
-              >
-                <div class="model-icon-wrap" :class="{ 'model-icon-active': settingsStore.selectedModelId === m.id }">
-                  <component :is="m.icon" :size="'16'" :color="settingsStore.selectedModelId === m.id ? '#fff' : '#8B7355'" />
-                </div>
-                <span class="model-name" :class="{ 'model-name-active': settingsStore.selectedModelId === m.id }">{{ m.name }}</span>
-              </div>
-
-              <div class="model-divider" />
-
-              <span class="model-section">国外模型</span>
-              <div
-                v-for="m in foreignModels"
-                :key="m.id"
-                class="model-item"
-                :class="{ 'model-item-active': settingsStore.selectedModelId === m.id }"
-                @click="settingsStore.selectedModelId = m.id"
-              >
-                <div class="model-icon-wrap" :class="{ 'model-icon-active': settingsStore.selectedModelId === m.id }">
-                  <component :is="m.icon" :size="'16'" :color="settingsStore.selectedModelId === m.id ? '#fff' : '#8B7355'" />
-                </div>
-                <span class="model-name" :class="{ 'model-name-active': settingsStore.selectedModelId === m.id }">{{ m.name }}</span>
-              </div>
-            </div>
-
             <div class="config-panel">
               <div class="config-tabs">
-                <button class="config-tab" :class="{ 'config-tab-selected': configTab === 'provider' }" @click="configTab = 'provider'">模型制造商</button>
                 <button class="config-tab" :class="{ 'config-tab-selected': configTab === 'custom' }" @click="configTab = 'custom'">自定义配置</button>
+                <button class="config-tab" :class="{ 'config-tab-selected': configTab === 'provider' }" @click="configTab = 'provider'">模型制造商</button>
               </div>
 
               <div class="config-form">
-                <div class="form-field">
-                  <label class="form-label">服务商</label>
-                  <input v-if="configTab === 'custom'" v-model="customProvider" class="form-input" placeholder="例如: OpenAI" />
-                  <div v-else class="form-input">{{ currentModelConfig.provider }}</div>
-                </div>
-                <div class="form-field">
-                  <label class="form-label">模型</label>
-                  <input v-if="configTab === 'custom'" v-model="customModel" class="form-input" placeholder="例如: gpt-4" />
-                  <div v-else class="form-input">{{ currentModelConfig.model }}</div>
-                </div>
+                <template v-if="configTab === 'provider'">
+                  <div class="form-field">
+                    <label class="form-label">服务商</label>
+                    <select v-model="selectedProvider" class="form-select" @change="onProviderChange">
+                      <option value="" disabled>请选择服务商</option>
+                      <optgroup label="国内">
+                        <option value="阿里云">阿里云 (通义千问)</option>
+                        <option value="百度">百度 (文心一言)</option>
+                        <option value="智谱">智谱 (GLM)</option>
+                        <option value="DeepSeek">DeepSeek</option>
+                        <option value="Moonshot">Moonshot (月之暗面)</option>
+                        <option value="零一万物">零一万物 (Yi)</option>
+                      </optgroup>
+                      <optgroup label="国外">
+                        <option value="OpenAI">OpenAI (GPT)</option>
+                        <option value="Anthropic">Anthropic (Claude)</option>
+                        <option value="Google">Google (Gemini)</option>
+                        <option value="Mistral">Mistral AI</option>
+                        <option value="Groq">Groq</option>
+                      </optgroup>
+                    </select>
+                  </div>
+                  <div class="form-field">
+                    <label class="form-label">模型</label>
+                    <select v-model="selectedModelName" class="form-select">
+                      <option value="" disabled>请选择模型</option>
+                      <option v-for="m in providerModels" :key="m" :value="m">{{ m }}</option>
+                    </select>
+                  </div>
+                </template>
+                <template v-else>
+                  <div class="form-field">
+                    <label class="form-label">API格式</label>
+                    <select v-model="customApiFormat" class="form-select">
+                      <option value="openai">OpenAI Chat Completions 格式</option>
+                      <option value="anthropic">Anthropic Messages 格式</option>
+                    </select>
+                  </div>
+                  <div class="form-field">
+                    <label class="form-label">自定义地址</label>
+                    <input v-model="customEndpoint" class="form-input" placeholder="https://api.example.com/v1" />
+                  </div>
+                  <div class="form-field">
+                    <label class="form-label">模型ID</label>
+                    <input v-model="customModelId" class="form-input" placeholder="例如: gpt-4" />
+                  </div>
+                </template>
                 <div class="form-field">
                   <label class="form-label">API Key</label>
                   <div class="form-input-row">
@@ -294,10 +321,6 @@
                     </button>
                   </div>
                 </div>
-                <div class="form-actions">
-                  <button class="form-btn-cancel" @click="resetForm">取消</button>
-                  <button class="form-btn-add" @click="addApiKeyEntry">添加</button>
-                </div>
               </div>
 
               <div v-if="settingsStore.apiKeys.length > 0" class="saved-keys">
@@ -305,17 +328,46 @@
                 <div v-for="key in settingsStore.apiKeys" :key="key.id" class="saved-key-item">
                   <div class="saved-key-info">
                     <span class="saved-key-provider">{{ key.provider }}</span>
-                    <span class="saved-key-model">{{ key.model }}</span>
+                    <span class="saved-key-model">{{ key.modelName || key.model }}</span>
                   </div>
+                  <button class="saved-key-test" @click="handleTestKey(key)" :disabled="testingKey === key.id">
+                    <RiLoaderLine v-if="testingKey === key.id" size="14" color="#8B7355" class="spin" />
+                    <RiCheckLine v-else-if="testSuccess[key.id]" size="14" color="#2D8A4E" />
+                    <RiCloseLine v-else-if="testFailed[key.id]" size="14" color="#C43A31" />
+                    <span>{{ testSuccess[key.id] ? '可用' : testFailed[key.id] ? '失败' : '测试' }}</span>
+                  </button>
                   <button class="saved-key-delete" @click="settingsStore.removeApiKey(key.id)">
                     <RiDeleteBinLine size="14" color="#C43A31" />
                   </button>
+                  <label class="toggle-switch" @click.stop="settingsStore.toggleApiKey(key.id)">
+                    <input type="checkbox" :checked="key.enabled" />
+                    <span class="toggle-slider"></span>
+                  </label>
                 </div>
               </div>
             </div>
           </div>
         </div>
       </main>
+    </div>
+
+    <!-- Template Modal -->
+    <div v-if="showTemplateModal" class="modal-overlay" @click.self="showTemplateModal = false">
+      <div class="modal-content">
+        <h3>添加模板</h3>
+        <div class="form-field">
+          <label>模板名称</label>
+          <input v-model="newTemplateName" class="form-input" placeholder="输入模板名称" />
+        </div>
+        <div class="form-field">
+          <label>上传文件</label>
+          <input type="file" accept=".docx,.doc" @change="handleTemplateFileSelect" class="form-input" />
+        </div>
+        <div class="modal-actions">
+          <button class="modal-btn-cancel" @click="showTemplateModal = false">取消</button>
+          <button class="modal-btn-save" @click="saveNewTemplate">保存</button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -324,28 +376,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSettingsStore } from '../stores/settingsStore'
-import {
-  RiRadarFill,
-  RiArrowLeftLine,
-  RiPaletteLine,
-  RiBookmarkLine,
-  RiFileListLine,
-  RiFileDownloadLine,
-  RiKeyLine,
-  RiCheckLine,
-  RiAddLine,
-  RiDeleteBinLine,
-  RiFileTextLine,
-  RiBuildingLine,
-  RiServerLine,
-  RiCustomerServiceLine,
-  RiFileWord2Line,
-  RiMarkdownLine,
-  RiEyeOffLine,
-  RiEyeLine,
-  RiRobotLine,
-  RiOpenaiFill,
-} from '@remixicon/vue'
+import { testApiKey } from '../api/client'
+import { RiRadarFill, RiArrowLeftLine, RiPaletteLine, RiBookmarkLine, RiFileListLine, RiFileDownloadLine, RiKeyLine, RiCheckLine, RiAddLine, RiDeleteBinLine, RiFileTextLine, RiBuildingLine, RiServerLine, RiCustomerServiceLine, RiFileWord2Line, RiMarkdownLine, RiEyeOffLine, RiEyeLine, RiLoaderLine, RiCloseLine, RiArrowDownSLine } from '@remixicon/vue'
 
 const router = useRouter()
 
@@ -401,24 +433,167 @@ const themes = [
 ]
 
 const selectedSkillCard = ref(-1)
+const showMoreSkills = ref(false)
+const skillFileInput = ref<HTMLInputElement | null>(null)
+const showTemplateModal = ref(false)
+const newTemplateName = ref('')
+const newTemplateFile = ref<File | null>(null)
 
-interface SkillCard {
-  name: string
-  desc: string
-  category: string
-  iconComp: any
-  iconBg: string
-  iconColor: string
+const showSkillPreview = ref(false)
+const currentSkillContent = ref('')
+const currentSkillName = ref('')
+
+const hiddenSkills = ref(new Set<string>())
+
+const toggleSkillDisplay = (skillId: string) => {
+  if (hiddenSkills.value.has(skillId)) {
+    hiddenSkills.value.delete(skillId)
+  } else {
+    hiddenSkills.value.add(skillId)
+  }
+  try { localStorage.setItem('hidden_skills', JSON.stringify([...hiddenSkills.value])) } catch {}
 }
 
-const skillCards: SkillCard[] = [
-  { name: '大纲生成', desc: '根据招标文件自动生成标书大纲', category: '智能写作', iconComp: RiFileTextLine, iconBg: '#C23B22', iconColor: '#fff' },
-  { name: '内容扩写', desc: '基于大纲要点自动扩写章节内容', category: '智能写作', iconComp: RiBuildingLine, iconBg: '#2D6A9F', iconColor: '#fff' },
-  { name: '摘要总结', desc: '提取文档关键信息生成简洁摘要', category: '智能处理', iconComp: RiServerLine, iconBg: '#2D8A4E', iconColor: '#fff' },
-  { name: '格式优化', desc: '统一文档格式、段落和排版风格', category: '智能处理', iconComp: RiCustomerServiceLine, iconBg: '#D4A017', iconColor: '#fff' },
-]
+const isSkillVisible = (skill: any) => !hiddenSkills.value.has(skill.id)
 
-const currentModelConfig = computed(() => settingsStore.selectedModel)
+const allManageableSkills = computed(() => {
+  const local = settingsStore.localSkills
+  const custom = settingsStore.customSkills
+  return [...local, ...custom]
+})
+
+onMounted(() => {
+  settingsStore.fetchModels()
+  settingsStore.fetchTemplates()
+  loadSavedConfig()
+  try {
+    const saved = localStorage.getItem('hidden_skills')
+    if (saved) hiddenSkills.value = new Set(JSON.parse(saved))
+  } catch {}
+})
+
+const displaySkills = computed(() => {
+  const icons = [
+    { icon: RiFileTextLine, bg: '#C23B22' },
+    { icon: RiBuildingLine, bg: '#2D6A9F' },
+    { icon: RiServerLine, bg: '#2D8A4E' },
+    { icon: RiCustomerServiceLine, bg: '#D4A017' },
+  ]
+  return allManageableSkills.value.map((skill, idx) => ({
+    id: skill.id,
+    name: skill.name,
+    desc: skill.description || '',
+    category: skill.category || '自定义',
+    iconComp: icons[idx % icons.length].icon,
+    iconBg: icons[idx % icons.length].bg,
+    path: (skill as any).path || '',
+  }))
+})
+
+const hasMoreSkills = computed(() => displaySkills.value.length > 10 && !showMoreSkills.value)
+
+const visibleSkillsCount = computed(() => {
+  return allManageableSkills.value.filter(s => !hiddenSkills.value.has(s.id)).length
+})
+
+const addTemplate = () => {
+  showTemplateModal.value = true
+  newTemplateName.value = ''
+  newTemplateFile.value = null
+}
+
+const openAddSkillPicker = () => {
+  skillFileInput.value?.click()
+}
+
+const openSkill = async (skill: { id: string; name: string; path: string }) => {
+  if (!skill.path) return
+  
+  currentSkillName.value = skill.name
+  showSkillPreview.value = true
+  
+  try {
+    const res = await fetch('/api/skills/content?path=' + encodeURIComponent(skill.path))
+    if (res.ok) {
+      currentSkillContent.value = await res.text()
+    } else {
+      currentSkillContent.value = '# ' + skill.name + '\n\n(无法加载技能文件内容)'
+    }
+  } catch {
+    currentSkillContent.value = '# ' + skill.name + '\n\n(加载失败，请检查技能文件路径)'
+  }
+}
+
+const closeSkillPreview = () => {
+  showSkillPreview.value = false
+  currentSkillContent.value = ''
+  currentSkillName.value = ''
+}
+
+const handleSkillFileSelect = async (event: Event) => {
+  const file = (event.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  try {
+    const text = await file.text()
+    const parsed = parseFrontmatter(text, file.name)
+    settingsStore.addCustomSkill(parsed)
+    alert('技能添加成功')
+  } catch {
+    alert('读取文件失败')
+  }
+  ;(event.target as HTMLInputElement).value = ''
+}
+
+const handleTemplateFileSelect = (e: Event) => {
+  newTemplateFile.value = (e.target as HTMLInputElement).files?.[0] || null
+}
+
+const saveNewTemplate = () => {
+  if (!newTemplateName.value.trim()) {
+    alert('请输入模板名称')
+    return
+  }
+  if (!newTemplateFile.value) {
+    alert('请选择 .docx 文件')
+    return
+  }
+  // 保存到本地 localStorage，不调用后端 API
+  settingsStore.addTemplate(newTemplateName.value.trim(), newTemplateFile.value)
+  showTemplateModal.value = false
+  newTemplateName.value = ''
+  newTemplateFile.value = null
+}
+
+function parseFrontmatter(content: string, filename: string) {
+  const result: any = { name: '', description: '', prompt: '', category: '自定义', enabled: true }
+  if (!content.startsWith('---')) {
+    result.name = filename.replace('.md', '')
+    const firstLine = content.split('\n')[0]
+    result.description = firstLine.substring(0, 100)
+    result.prompt = content
+    return result
+  }
+  const match = content.match(/^---\n([\s\S]*?)\n---/)
+  if (!match) {
+    result.name = filename.replace('.md', '')
+    return result
+  }
+  const fm: Record<string, string> = {}
+  match[1].split('\n').forEach(line => {
+    const colonIdx = line.indexOf(':')
+    if (colonIdx > -1) {
+      const key = line.substring(0, colonIdx).trim()
+      let val = line.substring(colonIdx + 1).trim()
+      val = val.replace(/^["']|["']$/g, '')
+      if (key && val) fm[key] = val
+    }
+  })
+  result.name = fm.name || filename.replace('.md', '')
+  result.description = fm.description || ''
+  result.prompt = fm.prompt || content
+  result.category = fm.category || '自定义'
+  return result
+}
 
 const wordFeatures = [
   '保留完整格式与排版样式',
@@ -434,30 +609,38 @@ const mdFeatures = [
   '兼容各类 Markdown 编辑器',
 ]
 
-interface ModelItem {
-  id: string
-  name: string
-  icon: any
-  provider: string
-  model: string
-}
-
-const domesticModels: ModelItem[] = [
-  { id: 'qwen', name: '通义千问', icon: RiRobotLine, provider: '阿里云', model: 'qwen-turbo' },
-  { id: 'wenxin', name: '文心一言', icon: RiRobotLine, provider: '百度', model: 'ernie-4.0' },
-  { id: 'glm', name: '智谱 GLM', icon: RiRobotLine, provider: '智谱', model: 'glm-4' },
-]
-
-const foreignModels: ModelItem[] = [
-  { id: 'gpt4o', name: 'GPT-4o', icon: RiOpenaiFill, provider: 'OpenAI', model: 'gpt-4o' },
-  { id: 'claude', name: 'Claude 3.5', icon: RiRobotLine, provider: 'Anthropic', model: 'claude-3-5-sonnet' },
-]
-
 const currentNav = computed(() => navItems.find(i => i.id === activeNav.value)!)
 
-const configTab = ref<'provider' | 'custom'>('provider')
-const customProvider = ref('')
-const customModel = ref('')
+const configTab = ref<'provider' | 'custom'>(
+  (() => { try { const v = localStorage.getItem('cfg_tab'); return (v === 'provider' || v === 'custom') ? v : 'custom' } catch { return 'custom' } })()
+)
+const customApiFormat = ref(
+  (() => { try { return localStorage.getItem('cfg_format') || 'openai' } catch { return 'openai' } })()
+)
+const customEndpoint = ref(localStorage.getItem('cfg_endpoint') || '')
+const customModelId = ref(localStorage.getItem('cfg_model_id') || '')
+
+const providerModelsMap: Record<string, string[]> = {
+  '阿里云': ['qwen3.7-max', 'qwen3.7-plus', 'qwen3.6-plus', 'qwen3.5-plus', 'qwen3-max', 'qwen-plus', 'qwen-flash', 'qwen3-coder-plus'],
+  '百度': ['ernie-4.0', 'ernie-3.5', 'ernie-speed'],
+  '智谱': ['glm-5.1', 'glm-4.6', 'glm-4'],
+  'DeepSeek': ['deepseek-v4-pro', 'deepseek-r1', 'deepseek-chat'],
+  'Moonshot': ['kimi-k2.6', 'moonshot-v1-128k', 'moonshot-v1-32k'],
+  '零一万物': ['yi-large', 'yi-medium', 'yi-34b-chat'],
+  'OpenAI': ['gpt-5.6-sol', 'gpt-5.5', 'gpt-5.4', 'gpt-5.4-pro', 'gpt-5.3-codex', 'o4-mini', 'o3', 'gpt-4.1'],
+  'Anthropic': ['claude-fable-5', 'claude-opus-4.8', 'claude-opus-4.7', 'claude-sonnet-4.6', 'claude-haiku-4.5'],
+  'Google': ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-pro'],
+  'Mistral': ['mistral-large-3', 'mistral-medium-3', 'mistral-small-3'],
+  'Groq': ['llama-3.3-70b', 'llama-3.1-8b', 'mixtral-8x7b-32768'],
+}
+
+const selectedProvider = ref('')
+const selectedModelName = ref('')
+const providerModels = computed(() => providerModelsMap[selectedProvider.value] || [])
+
+const onProviderChange = () => {
+  selectedModelName.value = ''
+}
 
 const selectTemplate = (id: string) => {
   settingsStore.setSelectedTemplate(
@@ -465,15 +648,50 @@ const selectTemplate = (id: string) => {
   )
 }
 
+const testingKey = ref('')
+const testSuccess = ref<Record<string, boolean>>({})
+const testFailed = ref<Record<string, boolean>>({})
+
+const handleTestKey = async (key: any) => {
+  testingKey.value = key.id
+  testSuccess.value[key.id] = false
+  testFailed.value[key.id] = false
+  try {
+    const res = await testApiKey({
+      provider: key.provider,
+      model: key.model,
+      key: key.key,
+      endpoint: key.endpoint || '',
+      format: key.format || 'openai',
+    })
+    testingKey.value = ''
+    if (res.data.available) {
+      testSuccess.value[key.id] = true
+    } else {
+      testFailed.value[key.id] = true
+    }
+  } catch {
+    testingKey.value = ''
+    testFailed.value[key.id] = true
+  }
+}
+
 const saveSettings = () => {
+  if (activeNav.value === 'apikey') {
+    addApiKeyEntry()
+    return
+  }
   alert('设置已保存')
   router.push('/')
 }
 
 const resetForm = () => {
   settingsStore.apiKeyForm = { provider: '', model: '', key: '', keyVisible: false }
-  customProvider.value = ''
-  customModel.value = ''
+  customApiFormat.value = ''
+  customEndpoint.value = ''
+  customModelId.value = ''
+  selectedProvider.value = ''
+  selectedModelName.value = ''
 }
 
 const addApiKeyEntry = () => {
@@ -483,33 +701,62 @@ const addApiKeyEntry = () => {
     return
   }
   if (configTab.value === 'custom') {
-    if (!customProvider.value.trim() || !customModel.value.trim()) {
-      alert('请填写服务商和模型名称')
+    if (!customEndpoint.value.trim() || !customModelId.value.trim()) {
+      alert('请填写自定义地址和模型 ID')
       return
     }
     settingsStore.addApiKey({
       id: Date.now().toString(),
-      provider: customProvider.value.trim(),
-      model: customModel.value.trim(),
-      modelName: customModel.value.trim(),
+      provider: customApiFormat.value === 'anthropic' ? 'Anthropic (自定义)' : 'OpenAI (自定义)',
+      model: customModelId.value.trim(),
+      modelName: customModelId.value.trim(),
       key: key,
+      endpoint: customEndpoint.value.trim(),
+      format: customApiFormat.value,
+      enabled: true,
     })
   } else {
+    if (!selectedProvider.value || !selectedModelName.value) {
+      alert('请选择服务商和模型')
+      return
+    }
     settingsStore.addApiKey({
       id: Date.now().toString(),
-      provider: settingsStore.selectedModel.provider,
-      model: settingsStore.selectedModel.model,
-      modelName: settingsStore.selectedModel.name,
+      provider: selectedProvider.value,
+      model: selectedModelName.value,
+      modelName: selectedModelName.value,
       key: key,
+      enabled: true,
     })
   }
   resetForm()
 }
 
-onMounted(() => {
-  settingsStore.fetchModels()
-  settingsStore.fetchTemplates()
-})
+function loadSavedConfig() {
+  try {
+    const saved = localStorage.getItem('api_config')
+    if (saved) {
+      const cfg = JSON.parse(saved)
+      configTab.value = cfg.configTab || 'custom'
+      customApiFormat.value = cfg.customApiFormat || 'openai'
+      customEndpoint.value = cfg.customEndpoint || ''
+      customModelId.value = cfg.customModelId || ''
+      selectedProvider.value = cfg.selectedProvider || ''
+      selectedModelName.value = cfg.selectedModelName || ''
+    }
+  } catch {}
+}
+
+function persistConfig() {
+  localStorage.setItem('api_config', JSON.stringify({
+    configTab: configTab.value,
+    customApiFormat: customApiFormat.value,
+    customEndpoint: customEndpoint.value,
+    customModelId: customModelId.value,
+    selectedProvider: selectedProvider.value,
+    selectedModelName: selectedModelName.value,
+  }))
+}
 
 const indicatorStyle = computed(() => {
   const idx = navItems.findIndex(i => i.id === activeNav.value)
@@ -1024,8 +1271,15 @@ const indicatorStyle = computed(() => {
 }
 
 .tpl-card-desc {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: normal;
   font-size: 11px;
   color: #8B7355;
+  cursor: help;
 }
 
 .tpl-card-check {
@@ -1050,6 +1304,155 @@ const indicatorStyle = computed(() => {
   justify-content: center;
   height: 340px;
   gap: 8px;
+  border: 1.5px dashed #D4C4A8;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.tpl-card-add:hover {
+  border-color: #C23B22;
+  background: #F0E8D5;
+}
+
+/* ── Toggle Button on Skill Cards ── */
+.tpl-card-toggle {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: rgba(255,255,255,0.9);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: all 0.2s;
+  z-index: 2;
+}
+
+.tpl-card-toggle:hover {
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.tpl-card-toggle.disabled {
+  opacity: 0.6;
+}
+
+.tpl-card-toggle.disabled:hover {
+  opacity: 0.8;
+}
+
+/* ── More Button Card ── */
+.tpl-card-more {
+  background: #F5EFE3;
+  border: 1.5px dashed #D4C4A8;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 340px;
+  gap: 8px;
+  transition: border-color 0.2s, background 0.2s;
+  cursor: pointer;
+}
+
+.tpl-card-more:hover {
+  border-color: #C23B22;
+  background: #F0E8D5;
+}
+
+/* ── Template Modal ── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal-content {
+  background: #fff;
+  border-radius: 16px;
+  padding: 32px;
+  width: 400px;
+  max-height: 80vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  animation: slideUp 0.2s ease-out;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.modal-btn-cancel {
+  padding: 10px 24px;
+  border: 0.7px solid #E0D5C0;
+  border-radius: 8px;
+  background: #F5EFE0;
+  color: #8B7355;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.modal-btn-cancel:hover {
+  background: #E0D5C0;
+}
+
+.modal-btn-save {
+  padding: 10px 24px;
+  border: none;
+  border-radius: 8px;
+  background: #C23B22;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.modal-btn-save:hover {
+  opacity: 0.9;
+}
+
+.modal-btn-test {
+  padding: 10px 24px;
+  border: none;
+  border-radius: 8px;
+  background: #2D8A4E;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.modal-btn-test:hover {
+  opacity: 0.9;
 }
 
 .tpl-add-icon {
@@ -1179,81 +1582,10 @@ const indicatorStyle = computed(() => {
 
 /* ── API Key (Model List + Config Form) ── */
 .api-full-panel {
-  display: flex;
-  gap: 24px;
-  min-height: 0;
   background: #F5EFE0;
   border: 0.7px solid #E0D5C0;
   border-radius: 16px;
   padding: 32px;
-}
-
-.model-list {
-  width: 260px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.model-section {
-  font-size: 11px;
-  font-weight: 600;
-  color: #8B7355;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  padding: 8px 0 4px;
-}
-
-.model-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.model-item:hover {
-  background: rgba(0,0,0,0.03);
-}
-
-.model-item-active {
-  background: #C23B22;
-}
-
-.model-icon-wrap {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  background: #E8DCC8;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: background 0.2s;
-}
-
-.model-icon-active {
-  background: rgba(255,255,255,0.2);
-}
-
-.model-name {
-  font-size: 14px;
-  color: #8B7355;
-  font-weight: 500;
-}
-
-.model-name-active {
-  color: #fff;
-  font-weight: 600;
-}
-
-.model-divider {
-  height: 1px;
-  background: #E0D5C0;
-  margin: 8px 0;
 }
 
 /* ── Config Panel ── */
@@ -1332,8 +1664,51 @@ const indicatorStyle = computed(() => {
 }
 
 .form-input:focus {
-  border-color: #6366F1;
-  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.2);
+  border-color: #C23B22;
+  box-shadow: 0 0 0 1px rgba(194, 59, 34, 0.15);
+}
+
+.form-select {
+  flex: 1;
+  background: #FAFAF5;
+  border: 0.7px solid #E0D5C0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: #3D2B1F;
+  outline: none;
+  transition: border-color 0.2s;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='%238B7355'%3E%3Cpath d='M12 16L6 10H18L12 16Z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+}
+
+.form-select:hover {
+  border-color: #D4C4A8;
+}
+
+.form-select:focus {
+  border-color: #C23B22;
+  box-shadow: 0 0 0 1px rgba(194, 59, 34, 0.15);
+}
+
+.form-select optgroup {
+  font-size: 12px;
+  font-weight: 600;
+  color: #8B7355;
+  background: #FBF7EF;
+}
+
+.form-select option {
+  font-size: 13px;
+  color: #3D2B1F;
+  background: #fff;
+  padding: 8px;
 }
 
 .form-input-row {
@@ -1389,6 +1764,7 @@ const indicatorStyle = computed(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   padding: 10px 12px;
   background: #FAFAF5;
   border: 0.7px solid #E0D5C0;
@@ -1396,9 +1772,11 @@ const indicatorStyle = computed(() => {
 }
 
 .saved-key-info {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
 
 .saved-key-provider {
@@ -1423,10 +1801,113 @@ const indicatorStyle = computed(() => {
   justify-content: center;
   border-radius: 6px;
   transition: background 0.2s;
+  flex-shrink: 0;
 }
 
 .saved-key-delete:hover {
   background: rgba(196, 58, 49, 0.08);
+}
+
+/* ── Toggle Switch (inside skill card) ── */
+.toggle-switch-compact {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  background: #D4C4A8;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  transition: background 0.2s;
+}
+
+.toggle-switch-compact input {
+  display: none;
+}
+
+.toggle-switch-compact .toggle-slider {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.2s;
+}
+
+.toggle-switch-compact input:checked + .toggle-slider {
+  transform: translateX(16px);
+}
+
+.toggle-switch-compact:has(input:checked) {
+  background: #C23B22;
+}
+.toggle-switch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  background: #D4C4A8;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  transition: background 0.2s;
+}
+
+.toggle-switch input {
+  display: none;
+}
+
+.toggle-switch .toggle-slider {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.2s;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  transform: translateX(16px);
+}
+
+.toggle-switch:has(input:checked) {
+  background: #C23B22;
+}
+
+/* ── Test Button ── */
+.saved-key-test {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 0.7px solid #E0D5C0;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 12px;
+  color: #8B7355;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.saved-key-test:hover:not(:disabled) {
+  border-color: #C23B22;
+  color: #C23B22;
+  background: rgba(194, 59, 34, 0.04);
+}
+
+.saved-key-test:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .form-key-toggle:hover {
@@ -1464,5 +1945,96 @@ const indicatorStyle = computed(() => {
 
 .form-btn-add:hover {
   opacity: 0.9;
+}
+
+/* ── Skill Preview Icon ── */
+.tpl-card-preview {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #F0E8D5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tpl-card-preview:hover {
+  background: #C23B22;
+  color: #fff;
+}
+
+.tpl-card-preview svg {
+  color: inherit !important;
+}
+
+/* ── Skill Preview Modal ── */
+.skill-preview-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.skill-preview-modal {
+  background: #fff;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 700px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.skill-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #E0D5C0;
+}
+
+.skill-preview-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #3D2B1F;
+}
+
+.skill-preview-close {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.skill-preview-close:hover {
+  background: #F0E8D5;
+}
+
+.skill-preview-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  margin: 0;
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #3D2B1F;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 </style>
