@@ -23,6 +23,7 @@ Thumbs.db
 scratch/
 *.tmp
 *.log
+backend/tmp/
 
 # Env
 .env
