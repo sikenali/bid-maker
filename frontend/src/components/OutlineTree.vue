@@ -11,53 +11,19 @@
     </div>
     <div class="outline-list" ref="listRef" :class="{ 'menu-open': openMenuId !== null }">
       <div class="outline-indicator" :style="indicatorStyle" />
-      <template v-for="section in outline" :key="section.id">
-        <div
-          :data-id="section.id"
-          class="outline-item"
-          :class="{ active: section.id === activeSectionId }"
-          @click="selectSection(section.id)"
-        >
-          <RiFileTextFill v-if="section.id === activeSectionId" size="20" color="#C23B22" />
-          <RiFileTextLine v-else size="20" color="#8B7355" />
-          <span class="item-title">{{ section.title }}</span>
-          <span class="menu-wrapper">
-            <button class="more-btn" :class="{ active: openMenuId === section.id }" @click.stop="toggleMenu(section.id)">
-              <RiMore2Fill size="16" color="#8B7355" />
-            </button>
-            <div v-if="openMenuId === section.id" class="context-menu" @click.stop>
-              <div class="menu-arrow" />
-              <button class="menu-item" :class="{ disabled: section.level >= 9 }" @click.stop="demoteLevel(section.id)">降级</button>
-              <button class="menu-item" @click.stop="addChild(section.id)">新增</button>
-              <div class="menu-divider" />
-              <button class="menu-item menu-item-danger" @click.stop="removeSection(section.id)">删除</button>
-            </div>
-          </span>
-        </div>
-        <div
-          v-for="child in section.children"
-          :key="child.id"
-          :data-id="child.id"
-          class="outline-subitem"
-          :class="{ active: child.id === activeSectionId }"
-          @click="selectSection(child.id)"
-        >
-          <RiArrowRightSLine size="14" color="#9B8C7C" />
-          <span class="subitem-title">{{ child.title }}</span>
-          <span class="menu-wrapper">
-            <button class="more-btn" :class="{ active: openMenuId === child.id }" @click.stop="toggleMenu(child.id)">
-              <RiMore2Fill size="14" color="#8B7355" />
-            </button>
-            <div v-if="openMenuId === child.id" class="context-menu" @click.stop>
-              <div class="menu-arrow" />
-              <button class="menu-item" :class="{ disabled: child.level >= 9 }" @click.stop="demoteLevel(child.id)">降级</button>
-              <button class="menu-item" @click.stop="addChild(child.id)">新增</button>
-              <div class="menu-divider" />
-              <button class="menu-item menu-item-danger" @click.stop="removeSection(child.id)">删除</button>
-            </div>
-          </span>
-        </div>
-      </template>
+      <OutlineTreeNode
+        v-for="section in outline"
+        :key="section.id"
+        :section="section"
+        :depth="0"
+        :active-section-id="activeSectionId"
+        :open-menu-id="openMenuId"
+        @select="selectSection"
+        @toggle-menu="toggleMenu"
+        @demote-level="demoteLevel"
+        @add-child="addChild"
+        @remove-section="removeSection"
+      />
     </div>
   </div>
 </template>
@@ -67,13 +33,10 @@ import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { useDocumentStore } from '../stores/documentStore'
 import type { Section } from '../stores/documentStore'
+import OutlineTreeNode from './OutlineTreeNode.vue'
 import {
   RiListCheck,
   RiAddLine,
-  RiMore2Fill,
-  RiFileTextFill,
-  RiFileTextLine,
-  RiArrowRightSLine,
 } from '@remixicon/vue'
 
 const route = useRoute()
@@ -310,177 +273,7 @@ onUnmounted(() => {
   z-index: 0;
 }
 
-.outline-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 16px;
-  cursor: pointer;
-  transition: background 0.15s;
-  position: relative;
-  z-index: 1;
-}
-
-.outline-item:hover {
-  background: rgba(194, 59, 34, 0.06);
-}
-
-.outline-item.active {
-  background: transparent;
-}
-
-.item-title {
-  font-size: 14px;
-  color: #3D2B1F;
-  font-weight: 500;
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.more-btn {
-  width: 24px;
-  height: 24px;
-  border: 0.7px solid #E0D5C0;
-  border-radius: 50%;
-  background: #FBF7EF;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  transition: opacity 0.15s, background 0.15s, border-color 0.15s;
-  flex-shrink: 0;
-  position: relative;
-  z-index: 2;
-}
-
-.outline-item:hover .more-btn,
-.outline-subitem:hover .more-btn {
-  opacity: 1;
-}
-
-.more-btn:hover {
-  background: #F5EFE0;
-  border-color: #D4C4A8;
-}
-
-.more-btn:focus-visible {
-  opacity: 1;
-}
-
-.more-btn.active {
-  opacity: 1;
-  background: #F5EFE0;
-  border-color: #C23B22;
-}
-
 .outline-list.menu-open .more-btn:not(.active) {
   opacity: 0 !important;
-}
-
-.context-menu {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 6px);
-  background: #fff;
-  border: 0.7px solid #E0D5C0;
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
-  z-index: 200;
-  min-width: 100px;
-  padding: 4px;
-  display: flex;
-  flex-direction: column;
-}
-
-.menu-wrapper {
-  position: relative;
-  display: inline-flex;
-}
-
-.menu-arrow {
-  position: absolute;
-  top: -5px;
-  right: 14px;
-  left: auto;
-  width: 8px;
-  height: 8px;
-  background: #fff;
-  border-left: 0.7px solid #E0D5C0;
-  border-top: 0.7px solid #E0D5C0;
-  transform: rotate(45deg);
-  z-index: -1;
-}
-
-.menu-item {
-  padding: 8px 12px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  font-size: 12px;
-  color: #3D2B1F;
-  cursor: pointer;
-  text-align: left;
-  white-space: nowrap;
-  transition: background 0.1s;
-}
-
-.menu-item:hover {
-  background: rgba(194, 59, 34, 0.06);
-}
-
-.menu-item-danger {
-  color: #C43A31;
-}
-
-.menu-item-danger:hover {
-  background: rgba(196, 58, 49, 0.08);
-}
-
-.menu-item.disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.menu-item.disabled:hover {
-  background: transparent;
-}
-
-.menu-divider {
-  height: 1px;
-  background: #E0D5C0;
-  margin: 4px 0;
-}
-
-.outline-subitem {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 16px 12px 46px;
-  cursor: pointer;
-  transition: background 0.15s;
-  position: relative;
-  z-index: 1;
-}
-
-.outline-subitem:hover {
-  background: rgba(194, 59, 34, 0.06);
-}
-
-.outline-subitem.active {
-  background: transparent;
-}
-
-.subitem-title {
-  font-size: 13px;
-  color: #3D2B1F;
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 </style>
