@@ -41,13 +41,12 @@
     </div>
     <div class="chat-input-area">
       <div class="input-container" ref="inputContainerRef">
-        <!-- Skill chip: renders as /技能名 before textarea -->
-        <SkillChip
-          v-if="selectedSkill"
-          :skill-name="selectedSkill.name"
-          @remove="clearSelectedSkill"
-        />
-        <div v-if="showSkillPopup" class="skill-popup" ref="popupRef">
+        <!-- Skill chip overlay -->
+        <div v-if="selectedSkill" class="skill-chip-overlay" @click="clearSelectedSkill">
+          <span class="chip-label">/ {{ selectedSkill.name }}</span>
+          <span class="chip-close"><RiCloseLine size="14" /></span>
+        </div>
+        <div v-if="showSkillPopup" class="skill-popup" ref="popupRef" :style="{ paddingBottom: selectedSkill ? '28px' : '4px' }">
           <div
             v-for="(skill, idx) in filteredSkills"
             :key="skill.id"
@@ -85,10 +84,10 @@ import { useChatStore } from '../stores/chatStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useDocumentStore } from '../stores/documentStore'
 import ModelSelect from './ModelSelect.vue'
-import SkillChip from './SkillChip.vue'
 import {
   RiSparklingFill,
   RiSendPlaneFill,
+  RiCloseLine,
 } from '@remixicon/vue'
 
 const chatStore = useChatStore()
@@ -239,12 +238,7 @@ const clearSelectedSkill = () => {
   activeSkillObj.value = null
 }
 
-const selectedSkill = computed(() => {
-  if (settingsStore.selectedSkillId) {
-    return settingsStore.allSkills.find(s => s.id === settingsStore.selectedSkillId) || null
-  }
-  return activeSkillObj.value
-})
+const selectedSkill = computed(() => activeSkillObj.value)
 
 const handleSend = () => {
   if (!inputText.value.trim()) return
@@ -369,6 +363,41 @@ const scrollToBottom = async () => {
   background: #fff;
   border-radius: 12px;
   padding: 8px;
+}
+
+.skill-chip-overlay {
+  position: absolute;
+  bottom: 4px;
+  right: 44px;
+  background: #C23B22;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 2px 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  z-index: 5;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.skill-chip-overlay:hover {
+  opacity: 0.85;
+}
+
+.chip-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.8;
+  transition: opacity 0.1s;
+}
+
+.chip-close:hover {
+  opacity: 1;
 }
 
 .skill-popup {
