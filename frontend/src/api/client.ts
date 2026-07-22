@@ -23,5 +23,17 @@ export const sendChat = (data: any) => api.post('/chat', data)
 export const getModels = () => api.get('/config/models')
 export const getTemplates = () => api.get('/templates')
 export const getTemplate = (id: string) => api.get(`/templates/${id}`)
+export const testApiKey = (data: { provider: string; model: string; key: string; endpoint?: string; format?: string }) => api.post('/config/test-key', data)
+
+export const getLocalSkills = () => api.get('/local-skills')
+
+export const postTemplate = (name: string, file: File) => {
+  const formData = new FormData()
+  formData.append('name', name)
+  formData.append('file', file)
+  return api.post('/templates', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+}
 
 export default api
