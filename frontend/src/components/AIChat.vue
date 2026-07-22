@@ -367,14 +367,14 @@ const scrollToBottom = async () => {
 
 .skill-chip-overlay {
   position: absolute;
-  bottom: 4px;
+  bottom: 8px;
   right: 44px;
   background: #C23B22;
   color: #fff;
   font-size: 11px;
   font-weight: 600;
   border-radius: 4px;
-  padding: 2px 8px;
+  padding: 1px 6px;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -382,6 +382,7 @@ const scrollToBottom = async () => {
   z-index: 5;
   user-select: none;
   white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(194, 59, 34, 0.2);
 }
 
 .skill-chip-overlay:hover {
