@@ -151,13 +151,17 @@ const cmdSkills = computed(() => {
   const hidden = tryGetHiddenSkills()
   return settingsStore.allSkills
     .filter(s => {
-      // Never show custom/local skills in the /popup (they are for Settings management)
-      if (s.id.startsWith('custom_') || s.path) return false
       // Check visibility (hidden flag from Settings)
       if (hidden.has(s.id)) return false
-      // For local/custom skills, check enabled status
-      if (!s.id.startsWith('outline') && !s.id.startsWith('expand') && !s.id.startsWith('summarize') && !s.id.startsWith('format')) {
-        if ('enabled' in s && s.enabled === false) return false
+      // Custom skills: check store's enabled flag
+      if (s.id.startsWith('custom_')) {
+        const customSkill = settingsStore.customSkills.find(cs => cs.id === s.id)
+        if ('enabled' in customSkill && !customSkill.enabled) return false
+      }
+      // Local skills: check store's enabled flag
+      if (s.path || s.id.startsWith('local_')) {
+        const localSkill = settingsStore.localSkills.find(ls => ls.id === s.id)
+        if ('enabled' in localSkill && !localSkill.enabled) return false
       }
       return true
     })

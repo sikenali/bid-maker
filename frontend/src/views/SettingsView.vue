@@ -127,6 +127,9 @@
                     </div>
                     <span class="tpl-card-cat">{{ tpl.category }}</span>
                     <span class="tpl-card-label">投标模板</span>
+                    <button class="tpl-card-delete-btn" @click.stop="settingsStore.removeTemplate(tpl.id)" title="删除">
+                      <RiDeleteBinLine size="16" color="#C43A31" />
+                    </button>
                   </div>
                   <div class="tpl-card-info">
                     <span class="tpl-card-name">{{ tpl.name }}</span>
@@ -135,9 +138,6 @@
                   <div v-if="settingsStore.selectedTemplateId === tpl.id" class="tpl-card-check">
                     <RiCheckLine size="12" color="#fff" />
                   </div>
-                  <button class="tpl-card-delete-btn" @click.stop="settingsStore.removeTemplate(tpl.id)" title="删除">
-                    <RiDeleteBinLine size="14" color="#C43A31" />
-                  </button>
                 </div>
                 <div class="tpl-card tpl-card-add" @click="addTemplate">
                   <div class="tpl-add-icon">
@@ -164,17 +164,22 @@
                       <component :is="skill.iconComp" :size="'24'" color="#ffffff" />
                     </div>
                     <span class="tpl-card-cat">{{ skill.category }}</span>
-                    <label class="toggle-switch-compact" @click.stop="toggleSkillDisplay(skill.id)">
-                      <input type="checkbox" :checked="isSkillVisible(skill)" />
+                    <label class="toggle-switch-compact" @click.stop="handleToggleSkill(skill)">
+                      <input type="checkbox" :checked="handleIsEnabled(skill)" />
                       <span class="toggle-slider"></span>
                     </label>
+                    <button
+                      v-if="skill.path || skill.id.startsWith('custom_')"
+                      class="tpl-card-skill-delete-btn"
+                      @click.stop="handleDeleteCustomSkill(skill)"
+                      title="从设置中删除"
+                    >
+                      <RiDeleteBinLine size="16" color="#C43A31" />
+                    </button>
                   </div>
                   <div class="tpl-card-info">
                     <span class="tpl-card-name">{{ skill.name }}</span>
                     <span class="tpl-card-desc" :title="skill.desc">{{ skill.desc }}</span>
-                  </div>
-                  <div class="tpl-card-preview" @click.stop="openSkill(skill)" :title="skill.path ? '打开技能文件' : '预览技能'">
-                    <RiFileTextLine size="20" color="#8B7355" />
                   </div>
                 </div>
                 <div v-if="hasMoreSkills" class="tpl-card tpl-card-more" @click="showMoreSkills = true">
@@ -455,6 +460,38 @@ const toggleSkillDisplay = (skillId: string) => {
 }
 
 const isSkillVisible = (skill: any) => !hiddenSkills.value.has(skill.id)
+
+// Handle toggle for skill management — respects both enabled and hidden
+const handleToggleSkill = (skill: { id: string; name: string; description: string }) => {
+  // For custom skills, sync with store
+  if (skill.id.startsWith('custom_')) {
+    settingsStore.toggleSkillEnabled(skill.id)
+  } else if (skill.path) {
+    // For local skills from API, enable/disable
+    const localSkill = settingsStore.localSkills.find(s => s.id === skill.id)
+    if (localSkill) {
+      localSkill.enabled = !localSkill.enabled
+    }
+  }
+}
+
+const handleIsEnabled = (skill: { id: string; enabled?: boolean }) => {
+  if (!skill.id.startsWith('outline') && !skill.id.startsWith('expand') && !skill.id.startsWith('summarize') && !skill.id.startsWith('format')) {
+    return skill.enabled !== false
+  }
+  return true
+}
+
+const handleDeleteCustomSkill = (skill: { id: string }) => {
+  if (skill.id.startsWith('custom_')) {
+    settingsStore.removeCustomSkill(skill.id)
+  } else if (skill.path) {
+    // Remove from localSkills and hidden set, but don't delete local file
+    settingsStore.localSkills = settingsStore.localSkills.filter(s => s.id !== skill.id)
+    hiddenSkills.value.delete(skill.id)
+    try { localStorage.setItem('hidden_skills', JSON.stringify([...hiddenSkills.value])) } catch {}
+  }
+}
 
 const allManageableSkills = computed(() => {
   const local = settingsStore.localSkills
@@ -1234,6 +1271,7 @@ const indicatorStyle = computed(() => {
   align-items: center;
   justify-content: center;
   gap: 6px;
+  position: relative;
 }
 
 .tpl-card-icon {
@@ -1818,7 +1856,9 @@ const indicatorStyle = computed(() => {
   border-radius: 999px;
   background: #D4C4A8;
   cursor: pointer;
-  position: relative;
+  position: absolute;
+  top: 12px;
+  right: 50px;
   flex-shrink: 0;
   transition: background 0.2s;
 }
@@ -1947,6 +1987,32 @@ const indicatorStyle = computed(() => {
   opacity: 0.9;
 }
 
+/* ── Template Card Delete Button (top-right) ── */
+.tpl-card-delete-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  opacity: 0;
+  z-index: 3;
+}
+
+.tpl-card:hover .tpl-card-delete-btn {
+  opacity: 1;
+}
+
+.tpl-card-delete-btn:hover svg {
+  color: #C23B22 !important;
+}
+
 /* ── Skill Preview Icon ── */
 .tpl-card-preview {
   position: absolute;
@@ -1970,6 +2036,32 @@ const indicatorStyle = computed(() => {
 
 .tpl-card-preview svg {
   color: inherit !important;
+}
+
+/* ── Skill Delete Button (top-right) ── */
+.tpl-card-skill-delete-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: rgba(240, 232, 213, 0.9);
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  z-index: 2;
+}
+
+.tpl-card-skill-delete-btn:hover {
+  background: #C23B22;
+}
+
+.tpl-card-skill-delete-btn:hover svg {
+  color: #fff !important;
 }
 
 /* ── Skill Preview Modal ── */
