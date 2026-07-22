@@ -5,7 +5,7 @@
       class="outline-node"
       :class="{ active: section.id === activeSectionId }"
       :style="{ paddingLeft: `${16 + depth * 30}px` }"
-      @click="selectSection(section.id)"
+      @click="emit('select', section.id)"
     >
       <RiFileTextFill v-if="section.id === activeSectionId" size="20" color="#C23B22" />
       <RiFileTextLine v-else size="20" color="#8B7355" />
@@ -14,16 +14,16 @@
         <button
           class="more-btn"
           :class="{ active: openMenuId === section.id }"
-          @click.stop="toggleMenu(section.id)"
+          @click.stop="emit('toggle-menu', section.id)"
         >
           <RiMore2Fill size="16" color="#8B7355" />
         </button>
         <div v-if="openMenuId === section.id" class="context-menu" @click.stop>
           <div class="menu-arrow" />
-          <button class="menu-item" :class="{ disabled: section.level >= 9 }" @click.stop="demoteLevel(section.id)">降级</button>
-          <button class="menu-item" @click.stop="addChild(section.id)">新增</button>
+          <button class="menu-item" :class="{ disabled: section.level >= 9 }" @click.stop="emit('demote-level', section.id)">降级</button>
+          <button class="menu-item" @click.stop="emit('add-child', section.id)">新增</button>
           <div class="menu-divider" />
-          <button class="menu-item menu-item-danger" @click.stop="removeSection(section.id)">删除</button>
+          <button class="menu-item menu-item-danger" @click.stop="emit('remove-section', section.id)">删除</button>
         </div>
       </span>
     </div>
@@ -34,11 +34,11 @@
       :depth="depth + 1"
       :active-section-id="activeSectionId"
       :open-menu-id="openMenuId"
-      @select="(id: string) => emit('select', id)"
-      @toggle-menu="(id: string) => emit('toggle-menu', id)"
-      @demote-level="(id: string) => emit('demote-level', id)"
-      @add-child="(id: string) => emit('add-child', id)"
-      @remove-section="(id: string) => emit('remove-section', id)"
+      @select="emit('select', $event)"
+      @toggle-menu="emit('toggle-menu', $event)"
+      @demote-level="emit('demote-level', $event)"
+      @add-child="emit('add-child', $event)"
+      @remove-section="emit('remove-section', $event)"
     />
   </div>
 </template>
@@ -66,26 +66,6 @@ const emit = defineEmits<{
   'add-child': [id: string]
   'remove-section': [id: string]
 }>()
-
-const selectSection = (id: string) => {
-  emit('select', id)
-}
-
-const toggleMenu = (id: string) => {
-  emit('toggle-menu', id)
-}
-
-const demoteLevel = (id: string) => {
-  emit('demote-level', id)
-}
-
-const addChild = (id: string) => {
-  emit('add-child', id)
-}
-
-const removeSection = (id: string) => {
-  emit('remove-section', id)
-}
 </script>
 
 <style scoped>
