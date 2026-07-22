@@ -251,7 +251,17 @@ func (h *Handler) Chat(c *gin.Context) {
 	}
 	resp, err := chatSvc.Chat(c.Request.Context(), chatReq, doc)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		errMsg := err.Error()
+		// Return 400 for client-side configuration errors
+		if strings.Contains(errMsg, "no LLM providers") ||
+			strings.Contains(errMsg, "provider") ||
+			strings.Contains(errMsg, "API key") ||
+			strings.Contains(errMsg, "required") ||
+			strings.Contains(errMsg, "x-api-key") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": errMsg})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": errMsg})
 		return
 	}
 
