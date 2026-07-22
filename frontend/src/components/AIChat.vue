@@ -40,12 +40,27 @@
       </div>
     </div>
     <div class="chat-input-area">
+      <div v-if="settingsStore.allSkills.length > 0" class="skill-bar">
+        <button
+          class="skill-btn"
+          :class="{ 'skill-btn-active': !settingsStore.selectedSkillId }"
+          @click="settingsStore.setSelectedSkill('')"
+        >自由对话</button>
+        <button
+          v-for="skill in settingsStore.allSkills"
+          :key="skill.id"
+          class="skill-btn"
+          :class="{ 'skill-btn-active': settingsStore.selectedSkillId === skill.id }"
+          @click="settingsStore.setSelectedSkill(skill.id === settingsStore.selectedSkillId ? '' : skill.id)"
+        >{{ skill.name }}</button>
+      </div>
       <div class="input-container">
-        <input
+        <textarea
           v-model="inputText"
-          @keyup.enter="handleSend"
+          @keydown.enter.prevent="handleSend"
           placeholder="输入您的问题..."
           class="chat-input"
+          rows="2"
         />
         <button @click="handleSend" :disabled="chatStore.isSending" class="send-btn">
           <RiSendPlaneFill size="14" color="#fff" />
@@ -90,9 +105,17 @@ watch(() => settingsStore.selectedModelId, () => {
 
 const handleSend = () => {
   if (!inputText.value.trim()) return
-  const text = inputText.value
+  let text = inputText.value
   inputText.value = ''
   const sectionId = chatStore.mode === 'context' ? docStore.activeSectionId : undefined
+
+  if (settingsStore.selectedSkillId) {
+    const skill = settingsStore.allSkills.find(s => s.id === settingsStore.selectedSkillId)
+    if (skill) {
+      text = skill.prompt + '\n\n' + text
+    }
+  }
+
   chatStore.sendMessage(text, sectionId, docId)
   scrollToBottom()
 }
@@ -199,13 +222,49 @@ const scrollToBottom = async () => {
 }
 
 .chat-input-area {
-  padding: 12px 16px;
+  padding: 8px 16px 12px;
   flex-shrink: 0;
+}
+
+.skill-bar {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+
+.skill-btn {
+  padding: 4px 10px;
+  border: 0.7px solid #E0D5C0;
+  border-radius: 6px;
+  background: #F5EFE0;
+  font-size: 11px;
+  color: #8B7355;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.skill-btn:hover {
+  border-color: #C23B22;
+  color: #C23B22;
+}
+
+.skill-btn-active {
+  background: #C23B22;
+  border-color: #C23B22;
+  color: #fff;
+}
+
+.skill-btn-active:hover {
+  color: #fff;
 }
 
 .input-container {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 8px;
   background: #fff;
   border-radius: 12px;
@@ -219,11 +278,23 @@ const scrollToBottom = async () => {
   font-size: 12px;
   color: #3D2B1F;
   background: transparent;
-  padding: 8px 0;
+  padding: 4px 0;
+  resize: none;
+  line-height: 1.5;
+  font-family: inherit;
 }
 
 .chat-input::placeholder {
   color: #B8A88A;
+}
+
+.chat-input::-webkit-scrollbar {
+  width: 4px;
+}
+
+.chat-input::-webkit-scrollbar-thumb {
+  background: #D4C4A8;
+  border-radius: 2px;
 }
 
 .send-btn {
