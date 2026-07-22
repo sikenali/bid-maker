@@ -273,7 +273,7 @@ onUnmounted(() => {
   z-index: 0;
 }
 
-.outline-list.menu-open .more-btn:not(.active) {
+.outline-list.menu-open :deep(.more-btn:not(.active)) {
   opacity: 0 !important;
 }
 </style>
