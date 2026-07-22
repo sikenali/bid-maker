@@ -10,7 +10,7 @@
       <div class="model-select-wrap">
         <ModelSelect
           v-model="selectedModelId"
-          :items="settingsStore.allModels"
+          :items="modelItems"
           @update:model-value="onModelChange"
         />
       </div>
@@ -62,7 +62,7 @@
           @input="onInput"
           placeholder="输入您的问题...（输入 / 调用技能）"
           class="chat-input"
-          rows="2"
+          rows="1"
         />
         <button @click="handleSend" :disabled="chatStore.isSending" class="send-btn">
           <RiSendPlaneFill size="14" color="#fff" />
@@ -92,17 +92,34 @@ const docId = route.params.id as string
 const inputText = ref('')
 const messagesRef = ref<HTMLElement>()
 
-const selectedModelId = ref(settingsStore.selectedModelId)
+const selectedModelId = ref(
+  settingsStore.apiKeys.length > 0
+    ? settingsStore.apiKeys[0].id
+    : settingsStore.selectedModelId
+)
+
+const modelItems = computed(() =>
+  settingsStore.apiKeys.map(k => ({
+    id: k.id,
+    name: k.modelName,
+  }))
+)
 
 const onModelChange = (id: string) => {
   settingsStore.setModel(id)
-  chatStore.setModel(settingsStore.selectedModel.model)
+  const selected = settingsStore.selectedModel
+  if (selected) {
+    chatStore.setModel(selected.model)
+  }
 }
 
-chatStore.setModel(settingsStore.selectedModel.model)
+chatStore.setModel(settingsStore.selectedModel?.model || '')
 watch(() => settingsStore.selectedModelId, () => {
   selectedModelId.value = settingsStore.selectedModelId
-  chatStore.setModel(settingsStore.selectedModel.model)
+  const selected = settingsStore.selectedModel
+  if (selected) {
+    chatStore.setModel(selected.model)
+  }
 })
 
 const textareaRef = ref<HTMLTextAreaElement>()
@@ -112,8 +129,23 @@ const showSkillPopup = ref(false)
 const activeSkillIdx = ref(0)
 const skillQuery = ref('')
 
+const tryGetHiddenSkills = () => {
+  try {
+    const saved = localStorage.getItem('hidden_skills')
+    if (saved) return new Set(JSON.parse(saved))
+  } catch {}
+  return new Set<string>()
+}
+
 const cmdSkills = computed(() =>
-  settingsStore.allSkills.map(s => ({ ...s, cmd: '/' + s.id }))
+  settingsStore.allSkills
+    .filter(s => {
+      if (s.id.startsWith('custom_') || s.path) return false
+      const hidden = tryGetHiddenSkills()
+      if (hidden.has(s.id)) return false
+      return true
+    })
+    .map(s => ({ ...s, cmd: '/' + s.id }))
 )
 
 const filteredSkills = computed(() => {
@@ -199,7 +231,7 @@ const handleSend = () => {
     }
   }
 
-  chatStore.sendMessage(text, sectionId, docId)
+  chatStore.sendMessage(text, sectionId, docId, selectedModelId.value)
   scrollToBottom()
 }
 
@@ -383,6 +415,7 @@ const scrollToBottom = async () => {
   resize: none;
   line-height: 1.5;
   font-family: inherit;
+  min-height: 100px;
 }
 
 .chat-input::placeholder {
