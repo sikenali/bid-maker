@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "dev": "concurrently -n frontend,backend -c cyan,green \"pnpm --filter bid-maker-frontend dev\" \"cd backend && (command -v air > /dev/null && air || go run ./cmd/server/)\"",
+    "dev": "concurrently -n frontend,backend -c cyan,green \"wait-on tcp:8080 && pnpm --filter bid-maker-frontend dev\" \"cd backend && (command -v air > /dev/null && air || go run ./cmd/server/)\"",
     "dev:backend": "cd backend && go run ./cmd/server/",
     "dev:frontend": "pnpm --filter bid-maker-frontend dev"
   },
@@ -8,6 +8,7 @@
     "@remixicon/vue": "^4.9.0"
   },
   "devDependencies": {
-    "concurrently": "^10.0.3"
+    "concurrently": "^10.0.3",
+    "wait-on": "^9.1.0"
   }
 }
