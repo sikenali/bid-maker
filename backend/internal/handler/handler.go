@@ -42,6 +42,11 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 			doc.PUT("/:id/section/:sectionId", h.SaveSection)
 			doc.POST("/:id/export", h.ExportDocument)
 		}
+		tpl := api.Group("/templates")
+		{
+			tpl.GET("", h.ListTemplates)
+			tpl.GET("/:id", h.GetTemplate)
+		}
 		config := api.Group("/config")
 		{
 			config.GET("/models", h.ListModels)
@@ -241,6 +246,21 @@ func (h *Handler) ListModels(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"models": h.llmRegistry.ListModels()})
+}
+
+func (h *Handler) ListTemplates(c *gin.Context) {
+	templates := service.GetTemplateStore().List()
+	c.JSON(http.StatusOK, gin.H{"templates": templates})
+}
+
+func (h *Handler) GetTemplate(c *gin.Context) {
+	id := c.Param("id")
+	t, ok := service.GetTemplateStore().Get(id)
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{"error": "template not found"})
+		return
+	}
+	c.JSON(http.StatusOK, t)
 }
 
 func (h *Handler) findSection(sections *[]model.Section, id string) *model.Section {

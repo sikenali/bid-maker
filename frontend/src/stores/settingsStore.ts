@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { getModels } from '../api/client'
+import { getModels, getTemplates } from '../api/client'
 
 export interface ApiKeyEntry {
   id: string
@@ -15,6 +15,15 @@ export interface ModelInfo {
   name: string
   provider: string
   model: string
+}
+
+export interface TemplateInfo {
+  id: string
+  name: string
+  description: string
+  category: string
+  icon: string
+  outline: any[]
 }
 
 const fallbackDomestic: ModelInfo[] = [
@@ -41,7 +50,6 @@ export const useSettingsStore = defineStore('settings', () => {
   const selectedModelId = ref('gpt4o')
   const theme = ref<'light' | 'dark' | 'paper'>('light')
   const exportFormat = ref<'word' | 'md'>('word')
-  const activeTplTab = ref('招标模板')
 
   const selectedModel = computed(() =>
     allModels.value.find(m => m.id === selectedModelId.value) || allModels.value[0]
@@ -49,6 +57,9 @@ export const useSettingsStore = defineStore('settings', () => {
 
   const apiKeys = ref<ApiKeyEntry[]>([])
   const apiKeyForm = ref({ provider: '', model: '', key: '', keyVisible: false })
+
+  const templates = ref<TemplateInfo[]>([])
+  const selectedTemplateId = ref('')
 
   async function fetchModels() {
     try {
@@ -70,6 +81,15 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
+  async function fetchTemplates() {
+    try {
+      const res = await getTemplates()
+      templates.value = res.data.templates || []
+    } catch {
+      console.warn('Failed to fetch templates')
+    }
+  }
+
   function setModel(id: string) {
     selectedModelId.value = id
   }
@@ -80,6 +100,10 @@ export const useSettingsStore = defineStore('settings', () => {
 
   function setExportFormat(f: 'word' | 'md') {
     exportFormat.value = f
+  }
+
+  function setSelectedTemplate(id: string) {
+    selectedTemplateId.value = id
   }
 
   function addApiKey(key: ApiKeyEntry) {
@@ -97,8 +121,10 @@ export const useSettingsStore = defineStore('settings', () => {
 
   return {
     allModels, domesticModels, foreignModels,
-    selectedModelId, selectedModel, theme, exportFormat, activeTplTab,
+    selectedModelId, selectedModel, theme, exportFormat,
     apiKeys, apiKeyForm,
-    fetchModels, setModel, setTheme, setExportFormat, addApiKey, removeApiKey, toggleKeyVisibility,
+    templates, selectedTemplateId,
+    fetchModels, fetchTemplates, setModel, setTheme, setExportFormat,
+    setSelectedTemplate, addApiKey, removeApiKey, toggleKeyVisibility,
   }
 })

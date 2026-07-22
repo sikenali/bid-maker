@@ -100,34 +100,30 @@
           <!-- 模板设置 -->
           <div v-if="activeNav === 'template'" class="panel">
             <div class="settings-card">
-              <div class="tpl-tabs-wrap">
-                <button
-                  v-for="tab in tplTabs"
-                  :key="tab"
-                  class="tpl-tab"
-                  :class="{ 'tpl-tab-active': settingsStore.activeTplTab === tab }"
-                  @click="settingsStore.activeTplTab = tab"
-                >{{ tab }}</button>
+              <div v-if="settingsStore.templates.length === 0" class="tpl-empty">
+                <RiFileTextLine size="40" color="#D4C4A8" />
+                <span class="tpl-empty-text">暂无模板，请添加</span>
               </div>
-              <div class="tpl-shelf">
+              <div v-else class="tpl-shelf">
                 <div
-                  v-for="(tpl, idx) in tplCards"
-                  :key="idx"
+                  v-for="tpl in settingsStore.templates"
+                  :key="tpl.id"
                   class="tpl-card"
-                  @click="selectedTplCard = idx"
+                  :class="{ 'tpl-card-selected': settingsStore.selectedTemplateId === tpl.id }"
+                  @click="selectTemplate(tpl.id)"
                 >
                   <div class="tpl-card-cover">
-                    <div class="tpl-card-icon" :style="{ background: tpl.iconBg }">
-                      <component :is="tpl.iconComp" :size="'24'" :color="tpl.iconColor" />
+                    <div class="tpl-card-icon" style="background: #C23B22">
+                      <RiFileTextLine size="24" color="#fff" />
                     </div>
                     <span class="tpl-card-cat">{{ tpl.category }}</span>
-                    <span class="tpl-card-label">标准模板</span>
+                    <span class="tpl-card-label">投标模板</span>
                   </div>
                   <div class="tpl-card-info">
                     <span class="tpl-card-name">{{ tpl.name }}</span>
-                    <span class="tpl-card-desc">{{ tpl.desc }}</span>
+                    <span class="tpl-card-desc">{{ tpl.description }}</span>
                   </div>
-                  <div v-if="selectedTplCard === idx" class="tpl-card-check">
+                  <div v-if="settingsStore.selectedTemplateId === tpl.id" class="tpl-card-check">
                     <RiCheckLine size="12" color="#fff" />
                   </div>
                 </div>
@@ -141,11 +137,38 @@
             </div>
           </div>
 
-          <!-- 规则设置 -->
-          <div v-if="activeNav === 'rules'" class="panel">
-            <div class="rules-placeholder">
-              <RiFileListLine size="48" color="#D4C4A8" />
-              <span class="rules-placeholder-text">规则设置功能开发中</span>
+          <!-- 技能管理 -->
+          <div v-if="activeNav === 'skills'" class="panel">
+            <div class="settings-card">
+              <div class="tpl-shelf">
+                <div
+                  v-for="(skill, idx) in skillCards"
+                  :key="idx"
+                  class="tpl-card"
+                  @click="selectedSkillCard = idx"
+                >
+                  <div class="tpl-card-cover">
+                    <div class="tpl-card-icon" :style="{ background: skill.iconBg }">
+                      <component :is="skill.iconComp" :size="'24'" :color="skill.iconColor" />
+                    </div>
+                    <span class="tpl-card-cat">{{ skill.category }}</span>
+                    <span class="tpl-card-label">写作技能</span>
+                  </div>
+                  <div class="tpl-card-info">
+                    <span class="tpl-card-name">{{ skill.name }}</span>
+                    <span class="tpl-card-desc">{{ skill.desc }}</span>
+                  </div>
+                  <div v-if="selectedSkillCard === idx" class="tpl-card-check">
+                    <RiCheckLine size="12" color="#fff" />
+                  </div>
+                </div>
+                <div class="tpl-card tpl-card-add">
+                  <div class="tpl-add-icon">
+                    <RiAddLine size="22" color="#8B7355" />
+                  </div>
+                  <span class="tpl-add-text">添加技能</span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -348,7 +371,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { id: 'theme', label: '主题设置', sublabel: 'Theme', title: '主题设置', desc: '选择你喜欢的界面风格', icon: RiPaletteLine, color: '#C23B22' },
   { id: 'template', label: '模板设置', sublabel: 'Template', title: '模板设置', desc: '管理标书模板', icon: RiBookmarkLine, color: '#C8A45C' },
-  { id: 'rules', label: '规则设置', sublabel: 'Rules', title: '规则设置', desc: '配置标书生成规则', icon: RiFileListLine, color: '#5B8C5A' },
+  { id: 'skills', label: '技能管理', sublabel: 'Skills', title: '技能管理', desc: '管理 AI 写作技能', icon: RiFileListLine, color: '#5B8C5A' },
   { id: 'export', label: '导出设置', sublabel: 'Export', title: '导出设置', desc: '配置标书导出的默认格式', icon: RiFileDownloadLine, color: '#2D6A9F' },
   { id: 'apikey', label: 'API Key', sublabel: '', title: 'API Key', desc: '管理 AI 模型密钥', icon: RiKeyLine, color: '#6366F1' },
 ]
@@ -377,10 +400,9 @@ const themes = [
   },
 ]
 
-const tplTabs = ['招标模板', '投标模板', '自定义模板']
-const selectedTplCard = ref(-1)
+const selectedSkillCard = ref(-1)
 
-interface TplCard {
+interface SkillCard {
   name: string
   desc: string
   category: string
@@ -389,11 +411,11 @@ interface TplCard {
   iconColor: string
 }
 
-const tplCards: TplCard[] = [
-  { name: '政府采购货物类', desc: '适用于货物类采购项目', category: '政府采购', iconComp: RiFileTextLine, iconBg: '#C23B22', iconColor: '#fff' },
-  { name: '工程施工类', desc: '适用于工程施工招标', category: '工程建设', iconComp: RiBuildingLine, iconBg: '#2D6A9F', iconColor: '#fff' },
-  { name: '信息化服务类', desc: '适用于IT服务采购', category: 'IT服务', iconComp: RiServerLine, iconBg: '#2D8A4E', iconColor: '#fff' },
-  { name: '咨询服务类', desc: '适用于咨询类采购', category: '咨询服务', iconComp: RiCustomerServiceLine, iconBg: '#D4A017', iconColor: '#fff' },
+const skillCards: SkillCard[] = [
+  { name: '大纲生成', desc: '根据招标文件自动生成标书大纲', category: '智能写作', iconComp: RiFileTextLine, iconBg: '#C23B22', iconColor: '#fff' },
+  { name: '内容扩写', desc: '基于大纲要点自动扩写章节内容', category: '智能写作', iconComp: RiBuildingLine, iconBg: '#2D6A9F', iconColor: '#fff' },
+  { name: '摘要总结', desc: '提取文档关键信息生成简洁摘要', category: '智能处理', iconComp: RiServerLine, iconBg: '#2D8A4E', iconColor: '#fff' },
+  { name: '格式优化', desc: '统一文档格式、段落和排版风格', category: '智能处理', iconComp: RiCustomerServiceLine, iconBg: '#D4A017', iconColor: '#fff' },
 ]
 
 const currentModelConfig = computed(() => settingsStore.selectedModel)
@@ -436,6 +458,12 @@ const currentNav = computed(() => navItems.find(i => i.id === activeNav.value)!)
 const configTab = ref<'provider' | 'custom'>('provider')
 const customProvider = ref('')
 const customModel = ref('')
+
+const selectTemplate = (id: string) => {
+  settingsStore.setSelectedTemplate(
+    settingsStore.selectedTemplateId === id ? '' : id
+  )
+}
 
 const saveSettings = () => {
   alert('设置已保存')
@@ -480,6 +508,7 @@ const addApiKeyEntry = () => {
 
 onMounted(() => {
   settingsStore.fetchModels()
+  settingsStore.fetchTemplates()
 })
 
 const indicatorStyle = computed(() => {
@@ -912,49 +941,29 @@ const indicatorStyle = computed(() => {
   padding: 32px;
 }
 
-/* ── Template Tabs ── */
-.tpl-tabs-wrap {
-  display: flex;
-  gap: 4px;
-  background: #F0E8D5;
-  border-radius: 12px;
-  padding: 4px;
-  width: fit-content;
-  margin-bottom: 24px;
-}
-
-.tpl-tab {
-  padding: 8px 20px;
-  border: none;
-  border-radius: 8px;
-  font-size: 13px;
-  cursor: pointer;
-  background: transparent;
-  color: #8B7355;
-  font-weight: 500;
-  transition: all 0.2s;
-  white-space: nowrap;
-}
-
-.tpl-tab-active {
-  background: #fff;
-  color: #3D2B1F;
-  font-weight: 600;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-}
-
-.tpl-tab:hover {
-  color: #5C4033;
-}
-
-.tpl-tab-active:hover {
-  color: #3D2B1F;
-}
-
 /* ── Template Shelf ── */
+.tpl-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 0;
+  gap: 16px;
+}
+
+.tpl-empty-text {
+  font-size: 14px;
+  color: #8B7355;
+}
+
+.tpl-card-selected {
+  box-shadow: 0 0 0 2px #C23B22;
+}
+
 .tpl-shelf {
   display: flex;
   gap: 20px;
+  flex-wrap: wrap;
 }
 
 .tpl-card {
@@ -1056,24 +1065,6 @@ const indicatorStyle = computed(() => {
 .tpl-add-text {
   font-size: 14px;
   font-weight: 500;
-  color: #8B7355;
-}
-
-/* ── Rules Placeholder ── */
-.rules-placeholder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 80px 0;
-  gap: 16px;
-  background: #F5EFE0;
-  border: 0.7px solid #E0D5C0;
-  border-radius: 16px;
-}
-
-.rules-placeholder-text {
-  font-size: 16px;
   color: #8B7355;
 }
 

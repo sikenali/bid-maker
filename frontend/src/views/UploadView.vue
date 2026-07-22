@@ -72,7 +72,8 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { uploadDocument } from '../api/client'
+import { uploadDocument, getTemplate, updateOutline } from '../api/client'
+import { useSettingsStore } from '../stores/settingsStore'
 import {
   RiRadarFill,
   RiQuestionLine,
@@ -104,9 +105,24 @@ const handleFile = async (file: File) => {
   }, 300)
   try {
     const res = await uploadDocument(file)
+    const docId = res.data.id
+
+    const settingsStore = useSettingsStore()
+    if (settingsStore.selectedTemplateId) {
+      try {
+        const tplRes = await getTemplate(settingsStore.selectedTemplateId)
+        const outline = tplRes.data.outline
+        if (outline && outline.length > 0) {
+          await updateOutline(docId, outline)
+        }
+      } catch {
+        console.warn('Failed to apply template, using extracted outline')
+      }
+    }
+
     clearInterval(interval)
     uploadProgress.value = 100
-    setTimeout(() => router.push(`/editor/${res.data.id}`), 300)
+    setTimeout(() => router.push(`/editor/${docId}`), 300)
   } catch (err) {
     clearInterval(interval)
     uploadProgress.value = 0

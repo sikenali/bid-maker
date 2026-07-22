@@ -1,5 +1,13 @@
 {
+  "scripts": {
+    "dev": "concurrently -n frontend,backend -c cyan,green \"pnpm --filter bid-maker-frontend dev\" \"cd backend && air\"",
+    "dev:backend": "cd backend && go run ./cmd/server/",
+    "dev:frontend": "pnpm --filter bid-maker-frontend dev"
+  },
   "dependencies": {
     "@remixicon/vue": "^4.9.0"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.3"
   }
 }

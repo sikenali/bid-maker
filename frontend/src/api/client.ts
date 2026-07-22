@@ -21,5 +21,7 @@ export const exportDocument = (docId: string, format?: string) => api.post(`/doc
 })
 export const sendChat = (data: any) => api.post('/chat', data)
 export const getModels = () => api.get('/config/models')
+export const getTemplates = () => api.get('/templates')
+export const getTemplate = (id: string) => api.get(`/templates/${id}`)
 
 export default api
