@@ -40,25 +40,27 @@
       </div>
     </div>
     <div class="chat-input-area">
-      <div v-if="settingsStore.allSkills.length > 0" class="skill-bar">
-        <button
-          class="skill-btn"
-          :class="{ 'skill-btn-active': !settingsStore.selectedSkillId }"
-          @click="settingsStore.setSelectedSkill('')"
-        >自由对话</button>
-        <button
-          v-for="skill in settingsStore.allSkills"
-          :key="skill.id"
-          class="skill-btn"
-          :class="{ 'skill-btn-active': settingsStore.selectedSkillId === skill.id }"
-          @click="settingsStore.setSelectedSkill(skill.id === settingsStore.selectedSkillId ? '' : skill.id)"
-        >{{ skill.name }}</button>
-      </div>
-      <div class="input-container">
+      <div class="input-container" ref="inputContainerRef">
+        <div v-if="showSkillPopup" class="skill-popup" ref="popupRef">
+          <div
+            v-for="(skill, idx) in filteredSkills"
+            :key="skill.id"
+            class="skill-popup-item"
+            :class="{ 'skill-popup-item-active': idx === activeSkillIdx }"
+            @click="selectSkill(skill)"
+            @mouseenter="activeSkillIdx = idx"
+          >
+            <span class="skill-popup-name">{{ skill.name }}</span>
+            <span class="skill-popup-desc">{{ skill.description }}</span>
+          </div>
+          <div v-if="filteredSkills.length === 0" class="skill-popup-empty">无匹配技能</div>
+        </div>
         <textarea
+          ref="textareaRef"
           v-model="inputText"
-          @keydown.enter.prevent="handleSend"
-          placeholder="输入您的问题..."
+          @keydown="onInputKeydown"
+          @input="onInput"
+          placeholder="输入您的问题...（输入 / 调用技能）"
           class="chat-input"
           rows="2"
         />
@@ -71,7 +73,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { useChatStore } from '../stores/chatStore'
 import { useSettingsStore } from '../stores/settingsStore'
@@ -102,6 +104,87 @@ watch(() => settingsStore.selectedModelId, () => {
   selectedModelId.value = settingsStore.selectedModelId
   chatStore.setModel(settingsStore.selectedModel.model)
 })
+
+const textareaRef = ref<HTMLTextAreaElement>()
+const inputContainerRef = ref<HTMLElement>()
+const popupRef = ref<HTMLElement>()
+const showSkillPopup = ref(false)
+const activeSkillIdx = ref(0)
+const skillQuery = ref('')
+
+const cmdSkills = computed(() =>
+  settingsStore.allSkills.map(s => ({ ...s, cmd: '/' + s.id }))
+)
+
+const filteredSkills = computed(() => {
+  if (!skillQuery.value) return cmdSkills.value
+  const q = skillQuery.value.toLowerCase()
+  return cmdSkills.value.filter(
+    s => s.id.toLowerCase().includes(q) || s.name.toLowerCase().includes(q) || s.cmd.includes(q)
+  )
+})
+
+const onInput = () => {
+  const match = inputText.value.match(/\/([a-zA-Z]*)$/)
+  if (match) {
+    skillQuery.value = match[1]
+    showSkillPopup.value = true
+    activeSkillIdx.value = 0
+  } else {
+    showSkillPopup.value = false
+    skillQuery.value = ''
+  }
+}
+
+const onInputKeydown = (e: KeyboardEvent) => {
+  if (showSkillPopup.value) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      activeSkillIdx.value = Math.min(activeSkillIdx.value + 1, filteredSkills.value.length - 1)
+      scrollPopupItemIntoView()
+      return
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      activeSkillIdx.value = Math.max(activeSkillIdx.value - 1, 0)
+      scrollPopupItemIntoView()
+      return
+    }
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      if (filteredSkills.value[activeSkillIdx.value]) {
+        e.preventDefault()
+        selectSkill(filteredSkills.value[activeSkillIdx.value])
+        return
+      }
+    }
+    if (e.key === 'Escape') {
+      showSkillPopup.value = false
+      skillQuery.value = ''
+      return
+    }
+  }
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault()
+    handleSend()
+  }
+}
+
+const scrollPopupItemIntoView = () => {
+  nextTick(() => {
+    const popup = popupRef.value
+    if (!popup) return
+    const item = popup.children[activeSkillIdx.value] as HTMLElement
+    if (item) item.scrollIntoView({ block: 'nearest' })
+  })
+}
+
+const selectSkill = (skill: { id: string; name: string; description: string; prompt: string }) => {
+  inputText.value = inputText.value.replace(/\/([a-zA-Z]*)$/, '')
+  showSkillPopup.value = false
+  skillQuery.value = ''
+  settingsStore.setSelectedSkill(skill.id)
+  nextTick(() => textareaRef.value?.focus())
+}
 
 const handleSend = () => {
   if (!inputText.value.trim()) return
@@ -226,49 +309,67 @@ const scrollToBottom = async () => {
   flex-shrink: 0;
 }
 
-.skill-bar {
-  display: flex;
-  gap: 4px;
-  margin-bottom: 8px;
-  overflow-x: auto;
-  flex-shrink: 0;
-}
-
-.skill-btn {
-  padding: 4px 10px;
-  border: 0.7px solid #E0D5C0;
-  border-radius: 6px;
-  background: #F5EFE0;
-  font-size: 11px;
-  color: #8B7355;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.15s;
-  flex-shrink: 0;
-}
-
-.skill-btn:hover {
-  border-color: #C23B22;
-  color: #C23B22;
-}
-
-.skill-btn-active {
-  background: #C23B22;
-  border-color: #C23B22;
-  color: #fff;
-}
-
-.skill-btn-active:hover {
-  color: #fff;
-}
-
 .input-container {
+  position: relative;
   display: flex;
   align-items: flex-end;
   gap: 8px;
   background: #fff;
   border-radius: 12px;
   padding: 8px;
+}
+
+.skill-popup {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  margin-bottom: 4px;
+  background: #fff;
+  border: 0.7px solid #E0D5C0;
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 100;
+  padding: 4px;
+}
+
+.skill-popup-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.skill-popup-item:hover,
+.skill-popup-item-active {
+  background: rgba(194, 59, 34, 0.08);
+}
+
+.skill-popup-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #3D2B1F;
+  white-space: nowrap;
+}
+
+.skill-popup-desc {
+  font-size: 11px;
+  color: #8B7355;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skill-popup-empty {
+  padding: 12px;
+  text-align: center;
+  font-size: 12px;
+  color: #8B7355;
 }
 
 .chat-input {
