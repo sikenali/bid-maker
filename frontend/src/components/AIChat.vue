@@ -371,8 +371,8 @@ const scrollToBottom = async () => {
 
 .skill-chip-overlay {
   position: absolute;
-  bottom: 8px;
-  right: 44px;
+  bottom: 12px;
+  left: 8px;
   background: #C23B22;
   color: #fff;
   font-size: 11px;
