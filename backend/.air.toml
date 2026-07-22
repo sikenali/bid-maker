@@ -2,12 +2,13 @@ root = "."
 tmp_dir = "tmp"
 
 [build]
-cmd = "go build ./cmd/server/"
+cmd = "go build -o tmp/server ./cmd/server/"
 bin = "tmp/server"
-full_bin = "tmp/server"
-include_ext = ["go", "mod"]
+full_bin = "sh -c 'cd /home/jingle/opc/bid-maker/backend && ./tmp/server'"
+include_ext = ["go"]
 exclude_dir = ["tmp", "vendor"]
-delay = 100
+delay = 500
+stop_on_error = true
 
 [log]
 time = false
