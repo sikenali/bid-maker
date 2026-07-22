@@ -1,6 +1,6 @@
 <template>
   <div class="model-picker" ref="containerRef">
-    <button class="picker-trigger" @click="toggleOpen">
+    <button class="picker-trigger" :class="{ 'picker-trigger-disabled': items.length === 0 }" @click="toggleOpen" :disabled="items.length === 0">
       <span class="picker-label">{{ selectedLabel }}</span>
       <RiArrowDownSLine size="14" color="#8B7355" class="picker-arrow" :class="{ open: isOpen }" />
     </button>
@@ -15,6 +15,7 @@
         <span class="option-name">{{ item.name }}</span>
         <RiCheckLine v-if="item.id === modelValue" size="14" color="#C23B22" class="option-check" />
       </button>
+      <div v-if="items.length === 0" class="picker-empty">请先添加 API Key</div>
     </div>
   </div>
 </template>
@@ -41,6 +42,7 @@ const isOpen = ref(false)
 const containerRef = ref<HTMLElement>()
 
 const selectedLabel = computed(() => {
+  if (props.items.length === 0) return '未配置模型'
   const item = props.items.find(i => i.id === props.modelValue)
   return item ? item.name : '选择模型'
 })
@@ -70,26 +72,42 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
 .picker-trigger {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  background: #F0E8D5;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #FAFAF5;
   border: 0.7px solid #E0D5C0;
   border-radius: 8px;
   cursor: pointer;
-  transition: background 0.2s, border-color 0.2s;
-  font-size: 11px;
+  transition: border-color 0.2s;
+  font-size: 13px;
   color: #3D2B1F;
   font-weight: 500;
   white-space: nowrap;
+  min-width: 160px;
 }
 
 .picker-trigger:hover {
-  background: #E8DCC8;
   border-color: #D4C4A8;
 }
 
+.picker-trigger:focus-visible {
+  border-color: #C23B22;
+  box-shadow: 0 0 0 1px rgba(194, 59, 34, 0.15);
+  outline: none;
+}
+
+.picker-trigger-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.picker-trigger-disabled:hover {
+  border-color: #E0D5C0;
+}
+
 .picker-label {
-  min-width: 36px;
+  flex: 1;
   text-align: left;
 }
 
@@ -106,11 +124,11 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
   position: absolute;
   top: calc(100% + 4px);
   right: 0;
-  min-width: 140px;
+  min-width: 200px;
   background: #fff;
   border: 0.7px solid #E0D5C0;
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+  border-radius: 10px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.12);
   z-index: 200;
   padding: 4px;
   display: flex;
@@ -122,11 +140,11 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 8px 12px;
+  padding: 10px 12px;
   border: none;
   border-radius: 6px;
   background: transparent;
-  font-size: 12px;
+  font-size: 13px;
   color: #3D2B1F;
   cursor: pointer;
   text-align: left;
@@ -144,5 +162,12 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
 
 .option-check {
   flex-shrink: 0;
+}
+
+.picker-empty {
+  padding: 12px 16px;
+  font-size: 12px;
+  color: #8B7355;
+  text-align: center;
 }
 </style>
