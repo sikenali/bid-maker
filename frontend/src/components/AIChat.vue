@@ -41,6 +41,12 @@
     </div>
     <div class="chat-input-area">
       <div class="input-container" ref="inputContainerRef">
+        <!-- Skill chip: renders as /技能名 before textarea -->
+        <SkillChip
+          v-if="selectedSkill"
+          :skill-name="selectedSkill.name"
+          @remove="clearSelectedSkill"
+        />
         <div v-if="showSkillPopup" class="skill-popup" ref="popupRef">
           <div
             v-for="(skill, idx) in filteredSkills"
@@ -79,6 +85,7 @@ import { useChatStore } from '../stores/chatStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useDocumentStore } from '../stores/documentStore'
 import ModelSelect from './ModelSelect.vue'
+import SkillChip from './SkillChip.vue'
 import {
   RiSparklingFill,
   RiSendPlaneFill,
@@ -128,7 +135,10 @@ const popupRef = ref<HTMLElement>()
 const showSkillPopup = ref(false)
 const activeSkillIdx = ref(0)
 const skillQuery = ref('')
+// Track the currently selected skill object (replaces string-based selectedSkillId)
+const activeSkillObj = ref<{ id: string; name: string; description: string; prompt: string } | null>(null)
 
+// Hidden skills set — shared with SettingsView
 const tryGetHiddenSkills = () => {
   try {
     const saved = localStorage.getItem('hidden_skills')
@@ -137,16 +147,23 @@ const tryGetHiddenSkills = () => {
   return new Set<string>()
 }
 
-const cmdSkills = computed(() =>
-  settingsStore.allSkills
+// Build cmd-ready skills: only show skills that are visible AND enabled
+const cmdSkills = computed(() => {
+  const hidden = tryGetHiddenSkills()
+  return settingsStore.allSkills
     .filter(s => {
+      // Never show custom/local skills in the /popup (they are for Settings management)
       if (s.id.startsWith('custom_') || s.path) return false
-      const hidden = tryGetHiddenSkills()
+      // Check visibility (hidden flag from Settings)
       if (hidden.has(s.id)) return false
+      // For local/custom skills, check enabled status
+      if (!s.id.startsWith('outline') && !s.id.startsWith('expand') && !s.id.startsWith('summarize') && !s.id.startsWith('format')) {
+        if ('enabled' in s && s.enabled === false) return false
+      }
       return true
     })
     .map(s => ({ ...s, cmd: '/' + s.id }))
-)
+})
 
 const filteredSkills = computed(() => {
   if (!skillQuery.value) return cmdSkills.value
@@ -214,9 +231,20 @@ const selectSkill = (skill: { id: string; name: string; description: string; pro
   inputText.value = inputText.value.replace(/\/([a-zA-Z]*)$/, '')
   showSkillPopup.value = false
   skillQuery.value = ''
-  settingsStore.setSelectedSkill(skill.id)
+  activeSkillObj.value = skill
   nextTick(() => textareaRef.value?.focus())
 }
+
+const clearSelectedSkill = () => {
+  activeSkillObj.value = null
+}
+
+const selectedSkill = computed(() => {
+  if (settingsStore.selectedSkillId) {
+    return settingsStore.allSkills.find(s => s.id === settingsStore.selectedSkillId) || null
+  }
+  return activeSkillObj.value
+})
 
 const handleSend = () => {
   if (!inputText.value.trim()) return
@@ -224,11 +252,9 @@ const handleSend = () => {
   inputText.value = ''
   const sectionId = chatStore.mode === 'context' ? docStore.activeSectionId : undefined
 
-  if (settingsStore.selectedSkillId) {
-    const skill = settingsStore.allSkills.find(s => s.id === settingsStore.selectedSkillId)
-    if (skill) {
-      text = skill.prompt + '\n\n' + text
-    }
+  if (selectedSkill.value) {
+    const skill = selectedSkill.value
+    text = skill.prompt + '\n\n' + text
   }
 
   chatStore.sendMessage(text, sectionId, docId, selectedModelId.value)
@@ -283,12 +309,6 @@ const scrollToBottom = async () => {
 .model-select-wrap {
   display: flex;
   align-items: center;
-}
-
-.model-label {
-  font-size: 11px;
-  color: #3D2B1F;
-  font-weight: 500;
 }
 
 .chat-messages {
