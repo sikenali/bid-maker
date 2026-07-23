@@ -129,3 +129,58 @@ func TestUpdateDocument(t *testing.T) {
 		t.Errorf("expected updated title, got %s", got.Title)
 	}
 }
+
+func TestFilterKeywordOutline(t *testing.T) {
+	svc := NewDocxService()
+	sections := []model.Section{
+		{
+			ID: "sec-1", Title: "第一章 总则", Level: 1,
+			Children: []model.Section{
+				{ID: "sec-1-1", Title: "1.1 项目概况", Level: 2},
+			},
+		},
+		{
+			ID: "sec-2", Title: "第二章 投标文件", Level: 1,
+			Children: []model.Section{
+				{ID: "sec-2-1", Title: "2.1 投标人资格", Level: 2,
+					Children: []model.Section{
+						{ID: "sec-2-1-1", Title: "2.1.1 资质要求", Level: 3},
+					},
+				},
+				{ID: "sec-2-2", Title: "2.2 投标报价", Level: 2},
+			},
+		},
+		{
+			ID: "sec-3", Title: "第三章 评标办法", Level: 1,
+		},
+	}
+
+	result := svc.filterKeywordOutline(sections, "投标文件")
+	if result == nil {
+		t.Fatal("expected non-nil result for matching keyword")
+	}
+	if len(result) != 2 {
+		t.Fatalf("expected 2 children under 投标文件, got %d", len(result))
+	}
+	if result[0].Title != "2.1 投标人资格" {
+		t.Errorf("expected first child '2.1 投标人资格', got '%s'", result[0].Title)
+	}
+	if result[1].Title != "2.2 投标报价" {
+		t.Errorf("expected second child '2.2 投标报价', got '%s'", result[1].Title)
+	}
+	if len(result[0].Children) != 1 || result[0].Children[0].Title != "2.1.1 资质要求" {
+		t.Error("nested children under 投标人资格 should be preserved")
+	}
+}
+
+func TestFilterKeywordOutline_NoMatch(t *testing.T) {
+	svc := NewDocxService()
+	sections := []model.Section{
+		{ID: "sec-1", Title: "第一章 总则", Level: 1},
+	}
+
+	result := svc.filterKeywordOutline(sections, "不存在的关键词")
+	if result != nil {
+		t.Fatal("expected nil for non-matching keyword")
+	}
+}
