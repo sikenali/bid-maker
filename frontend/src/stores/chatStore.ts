@@ -44,6 +44,7 @@ export const useChatStore = defineStore('chat', () => {
       }
       
       const modelName = apiKeyEntry ? (apiKeyEntry.modelName || apiKeyEntry.model) : modelId.value
+      const provider = apiKeyEntry?.provider || ''
       const endpoint = apiKeyEntry?.endpoint || ''
       const apiKey = apiKeyEntry?.key || ''
       const format = apiKeyEntry?.format || 'openai'
@@ -63,6 +64,7 @@ export const useChatStore = defineStore('chat', () => {
         mode: mode.value,
         section_id: sectionId || '',
         history: currentHistory.filter((_, i) => i !== lastUserMsgIdx).map(m => ({ role: m.role, content: m.content })),
+        provider: provider,
         model: modelName,
         endpoint: endpoint,
         format: format,
