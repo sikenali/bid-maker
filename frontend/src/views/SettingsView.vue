@@ -1846,7 +1846,7 @@ const indicatorStyle = computed(() => {
   background: rgba(196, 58, 49, 0.08);
 }
 
-/* ── Toggle Switch (inside skill card) ── */
+/* ── Toggle Switch (inside skill card, left-aligned with icon) ── */
 .toggle-switch-compact {
   display: flex;
   align-items: center;
@@ -1857,8 +1857,9 @@ const indicatorStyle = computed(() => {
   background: #D4C4A8;
   cursor: pointer;
   position: absolute;
-  top: 12px;
-  right: 50px;
+  top: 50%;
+  left: 12px;
+  transform: translateY(-50%);
   flex-shrink: 0;
   transition: background 0.2s;
 }
