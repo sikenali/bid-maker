@@ -359,12 +359,16 @@ func (h *Handler) CreateTemplate(c *gin.Context) {
 		return
 	}
 
-	name := form.Value["name"][0]
-	fileHeader := form.File["file"][0]
-	if fileHeader == nil {
+	if len(form.Value["name"]) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "name is required"})
+		return
+	}
+	if len(form.File["file"]) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "file is required"})
 		return
 	}
+	name := form.Value["name"][0]
+	fileHeader := form.File["file"][0]
 
 	ext := filepath.Ext(fileHeader.Filename)
 	if ext != ".docx" && ext != ".doc" {

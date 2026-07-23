@@ -462,12 +462,10 @@ const toggleSkillDisplay = (skillId: string) => {
 const isSkillVisible = (skill: any) => !hiddenSkills.value.has(skill.id)
 
 // Handle toggle for skill management — respects both enabled and hidden
-const handleToggleSkill = (skill: { id: string; name: string; description: string }) => {
-  // For custom skills, sync with store
+const handleToggleSkill = (skill: { id: string; path?: string }) => {
   if (skill.id.startsWith('custom_')) {
     settingsStore.toggleSkillEnabled(skill.id)
   } else if (skill.path) {
-    // For local skills from API, enable/disable
     const localSkill = settingsStore.localSkills.find(s => s.id === skill.id)
     if (localSkill) {
       localSkill.enabled = !localSkill.enabled
@@ -476,10 +474,7 @@ const handleToggleSkill = (skill: { id: string; name: string; description: strin
 }
 
 const handleIsEnabled = (skill: { id: string; enabled?: boolean }) => {
-  if (!skill.id.startsWith('outline') && !skill.id.startsWith('expand') && !skill.id.startsWith('summarize') && !skill.id.startsWith('format')) {
-    return skill.enabled !== false
-  }
-  return true
+  return skill.enabled !== false
 }
 
 const handleDeleteCustomSkill = (skill: { id: string }) => {
@@ -502,6 +497,8 @@ const allManageableSkills = computed(() => {
 onMounted(() => {
   settingsStore.fetchModels()
   settingsStore.fetchTemplates()
+  settingsStore.fetchLocalSkills()
+  settingsStore.loadCustomSkillsFromLocalStorage()
   loadSavedConfig()
   try {
     const saved = localStorage.getItem('hidden_skills')
@@ -524,6 +521,7 @@ const displaySkills = computed(() => {
     iconComp: icons[idx % icons.length].icon,
     iconBg: icons[idx % icons.length].bg,
     path: (skill as any).path || '',
+    enabled: (skill as any).enabled !== false,
   }))
 })
 
@@ -715,9 +713,11 @@ const handleTestKey = async (key: any) => {
 
 const saveSettings = () => {
   if (activeNav.value === 'apikey') {
+    persistConfig()
     addApiKeyEntry()
     return
   }
+  persistConfig()
   alert('设置已保存')
   router.push('/')
 }
