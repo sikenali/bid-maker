@@ -205,7 +205,7 @@ const handleSelectSection = (sectionId: string) => {
 }
 
 .right-panel {
-  width: 380px;
+  width: 420px;
   flex-shrink: 0;
   background: #FBF7EF;
   border-radius: 12px;
