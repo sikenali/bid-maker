@@ -341,6 +341,9 @@
                     <RiCloseLine v-else-if="testFailed[key.id]" size="14" color="#C43A31" />
                     <span>{{ testSuccess[key.id] ? '可用' : testFailed[key.id] ? '失败' : '测试' }}</span>
                   </button>
+                  <button class="saved-key-edit" @click="handleEditKey(key)" title="编辑">
+                    <RiEditLine size="14" color="#8B7355" />
+                  </button>
                   <button class="saved-key-delete" @click="settingsStore.removeApiKey(key.id)">
                     <RiDeleteBinLine size="14" color="#C43A31" />
                   </button>
@@ -382,7 +385,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSettingsStore } from '../stores/settingsStore'
 import { testApiKey } from '../api/client'
-import { RiRadarFill, RiArrowLeftLine, RiPaletteLine, RiBookmarkLine, RiFileListLine, RiFileDownloadLine, RiKeyLine, RiCheckLine, RiAddLine, RiDeleteBinLine, RiFileTextLine, RiBuildingLine, RiServerLine, RiCustomerServiceLine, RiFileWord2Line, RiMarkdownLine, RiEyeOffLine, RiEyeLine, RiLoaderLine, RiCloseLine, RiArrowDownSLine } from '@remixicon/vue'
+import { RiRadarFill, RiArrowLeftLine, RiPaletteLine, RiBookmarkLine, RiFileListLine, RiFileDownloadLine, RiKeyLine, RiCheckLine, RiAddLine, RiDeleteBinLine, RiFileTextLine, RiBuildingLine, RiServerLine, RiCustomerServiceLine, RiFileWord2Line, RiMarkdownLine, RiEyeOffLine, RiEyeLine, RiLoaderLine, RiCloseLine, RiArrowDownSLine, RiEditLine } from '@remixicon/vue'
 
 const router = useRouter()
 
@@ -709,6 +712,21 @@ const handleTestKey = async (key: any) => {
     testingKey.value = ''
     testFailed.value[key.id] = true
   }
+}
+
+const handleEditKey = (key: any) => {
+  settingsStore.apiKeyForm.key = key.key
+  if (key.endpoint) {
+    configTab.value = 'custom'
+    customApiFormat.value = key.format || 'openai'
+    customEndpoint.value = key.endpoint
+    customModelId.value = key.model || key.modelName || ''
+  } else {
+    configTab.value = 'provider'
+    selectedProvider.value = key.provider
+    selectedModelName.value = key.model || key.modelName || ''
+  }
+  persistConfig()
 }
 
 const saveSettings = () => {
@@ -1843,6 +1861,24 @@ const indicatorStyle = computed(() => {
 
 .saved-key-delete:hover {
   background: rgba(196, 58, 49, 0.08);
+}
+
+.saved-key-edit {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.saved-key-edit:hover {
+  background: rgba(139, 115, 85, 0.08);
 }
 
 /* ── Toggle Switch (inside skill card, top-left) ── */
