@@ -70,9 +70,9 @@ func (s *DocxService) ParseDocument(data []byte) (*model.Document, error) {
 	defer doc.Close()
 
 	paras := doc.Paragraphs()
-	sections := s.extractSections(paras)
-	filtered := s.filterKeywordOutline(sections, s.Keyword)
+	filtered := s.extractSectionsWithKeyword(paras, s.Keyword)
 	if filtered == nil {
+		sections := s.extractSections(paras)
 		filtered = sections
 	}
 
@@ -141,15 +141,78 @@ func findLeaf(sec *model.Section) *model.Section {
 }
 
 func (s *DocxService) filterKeywordOutline(sections []model.Section, keyword string) []model.Section {
-	for _, sec := range sections {
+	for i, sec := range sections {
 		if strings.Contains(sec.Title, keyword) {
 			return sec.Children
+		}
+		if strings.Contains(sec.Content, keyword) {
+			return sections[i:]
 		}
 		if found := s.filterKeywordOutline(sec.Children, keyword); found != nil {
 			return found
 		}
 	}
 	return nil
+}
+
+func (s *DocxService) extractSectionsWithKeyword(paras []document.Paragraph, keyword string) []model.Section {
+	var sections []model.Section
+	var parentStack []*model.Section
+	keywordFound := false
+
+	for _, p := range paras {
+		text := strings.TrimSpace(paragraphText(p))
+		if text == "" {
+			continue
+		}
+
+		isH, level := isHeading(p)
+
+		if !keywordFound {
+			if isH && strings.Contains(text, keyword) {
+				keywordFound = true
+				continue
+			}
+			if !isH && strings.Contains(text, keyword) {
+				keywordFound = true
+				continue
+			}
+			continue
+		}
+
+		if isH {
+			section := model.Section{
+				ID:    fmt.Sprintf("sec-%d", len(sections)+1),
+				Title: text,
+				Level: level,
+			}
+
+			for len(parentStack) > 0 && parentStack[len(parentStack)-1].Level >= level {
+				parentStack = parentStack[:len(parentStack)-1]
+			}
+
+			if len(parentStack) > 0 {
+				parent := parentStack[len(parentStack)-1]
+				parent.Children = append(parent.Children, section)
+				parentStack = append(parentStack, &parent.Children[len(parent.Children)-1])
+			} else {
+				sections = append(sections, section)
+				parentStack = append(parentStack, &sections[len(sections)-1])
+			}
+		} else if len(sections) > 0 {
+			last := findLeaf(&sections[len(sections)-1])
+			if last.Content != "" {
+				last.Content += "\n"
+			}
+			last.Content += text
+		}
+	}
+
+	if len(sections) == 0 {
+		return nil
+	}
+
+	return sections
 }
 
 func (s *DocxService) GenerateDocument(doc *model.Document) ([]byte, error) {
