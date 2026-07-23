@@ -2054,6 +2054,11 @@ const indicatorStyle = computed(() => {
   justify-content: center;
   transition: all 0.2s;
   z-index: 2;
+  opacity: 0;
+}
+
+.tpl-card:hover .tpl-card-skill-delete-btn {
+  opacity: 1;
 }
 
 .tpl-card-skill-delete-btn:hover {
