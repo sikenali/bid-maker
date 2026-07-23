@@ -72,6 +72,9 @@ func (s *DocxService) ParseDocument(data []byte) (*model.Document, error) {
 	paras := doc.Paragraphs()
 	sections := s.extractSections(paras)
 	filtered := s.filterKeywordOutline(sections, s.Keyword)
+	if filtered == nil {
+		filtered = sections
+	}
 
 	id := fmt.Sprintf("doc-%d", time.Now().Unix())
 	title := "Untitled Document"

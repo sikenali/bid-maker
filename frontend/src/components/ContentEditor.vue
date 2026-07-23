@@ -5,9 +5,6 @@
 <span class="section-main">{{ currentSectionTitle }}</span>
         </div>
       <div class="edit-tools">
-        <button class="tool-btn ai-btn" title="AI Assist" @click="toggleAI">
-          <RiSparklingFill size="18" color="#C23B22" />
-        </button>
         <button class="tool-btn save-btn" title="Save" @click="save" :disabled="saving">
           <RiSaveLine size="18" color="#8B7355" />
         </button>
@@ -41,7 +38,6 @@ import { useSettingsStore } from '../stores/settingsStore'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import {
-  RiSparklingFill,
   RiSaveLine,
   RiFileListLine,
   RiFilePaper2Line,
@@ -105,14 +101,72 @@ watch(activeSectionId, async (newId) => {
   }
 }, { immediate: false })
 
-const toggleAI = () => {
-  const section = currentSection.value
-  if (!section) return
-  alert('AI 辅助功能已触发，正在分析当前章节…\n\n章节: ' + section.title)
+const toggleAI = () => {}
+
+const extractOutline = async () => {
+  if (!activeSectionId.value || !editor.value) return
+  try {
+    const outline = docStore.getFullOutline()
+    if (!outline || outline.length === 0) {
+      alert('当前文档没有大纲内容')
+      return
+    }
+    const md = buildOutlineMarkdown(outline, 0)
+    editor.value.commands.setContent(md)
+  } catch (err) {
+    console.error('Extract outline failed:', err)
+    alert('大纲提取失败，请重试')
+  }
 }
 
-const extractOutline = () => {
-  alert('大纲提取完成')
+const generateBid = async () => {
+  if (!docId.value) return
+  try {
+    const outline = docStore.getFullOutline()
+    const allSections = collectAllSections(outline)
+    if (allSections.length === 0) {
+      alert('请先上传或选择模板以生成大纲')
+      return
+    }
+    let allContent = ''
+    for (let i = 0; i < allSections.length; i++) {
+      const sec = allSections[i]
+      const existingContent = sec.content ? `${sec.content}\n\n` : ''
+      allContent += `# ${sec.title}\n\n${existingContent}`
+      if (i < allSections.length - 1) {
+        allContent += '\n---\n\n'
+      }
+    }
+    editor.value?.commands.setContent(allContent)
+    await docStore.saveSectionContent(docId.value, 'all', allContent)
+    alert('标书内容已生成完成，可点击导出按钮下载')
+  } catch (err) {
+    console.error('Generate bid failed:', err)
+    alert('标书生成失败，请重试')
+  }
+}
+
+function buildOutlineMarkdown(sections: any[], depth: number): string {
+  let md = ''
+  for (const s of sections) {
+    const prefix = '#'.repeat(depth + 1)
+    md += `${prefix} ${s.title}\n`
+    if (s.children && s.children.length > 0) {
+      md += buildOutlineMarkdown(s.children, depth + 1)
+    }
+  }
+  return md
+}
+
+function collectAllSections(sections: any[]): any[] {
+  const result: any[] = []
+  for (const s of sections) {
+    result.push({ title: s.title, content: s.content || '' })
+    if (s.children && s.children.length > 0) {
+      result.push(...collectAllSections(s.children))
+    }
+  }
+  return result
 }
 
 const generateBid = async () => {

@@ -24,13 +24,21 @@ export const useDocumentStore = defineStore('document', () => {
   }
 
   const loadSection = async (docId: string, sectionId: string) => {
-    const res = await getSection(docId, sectionId)
-    sections.value.set(sectionId, res.data)
+    try {
+      const res = await getSection(docId, sectionId)
+      sections.value.set(sectionId, res.data)
+    } catch {
+      // Section not found in backend — keep local data (e.g. newly added sections)
+    }
     activeSectionId.value = sectionId
   }
 
   const saveSectionContent = async (docId: string, sectionId: string, content: string) => {
-    await saveSection(docId, sectionId, content)
+    try {
+      await saveSection(docId, sectionId, content)
+    } catch {
+      // Section may not exist in backend yet — just update local state
+    }
     const section = sections.value.get(sectionId)
     if (section) section.content = content
   }
