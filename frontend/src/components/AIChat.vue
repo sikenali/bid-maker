@@ -180,7 +180,7 @@ const filteredSkills = computed(() => {
 })
 
 const onInput = () => {
-  const match = inputText.value.match(/\/([a-zA-Z]*)$/)
+  const match = inputText.value.match(/\/(\S*)$/)
   if (match) {
     skillQuery.value = match[1]
     showSkillPopup.value = true
@@ -234,7 +234,7 @@ const scrollPopupItemIntoView = () => {
 }
 
 const selectSkill = (skill: { id: string; name: string; description: string; prompt: string }) => {
-  inputText.value = inputText.value.replace(/\/([a-zA-Z]*)$/, '')
+  inputText.value = inputText.value.replace(/\/(\S*)$/, '')
   showSkillPopup.value = false
   skillQuery.value = ''
   activeSkillObj.value = skill

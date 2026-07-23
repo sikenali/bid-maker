@@ -317,7 +317,7 @@ func testModelsEndpoint(baseURL string, apiKey string) *ApiKeyTestResult {
 		return &ApiKeyTestResult{Available: false, Error: fmt.Sprintf("invalid base URL %q", baseURL)}
 	}
 
-	modelsURL := strings.TrimRight(baseURL, "/") + "/v1/models"
+	modelsURL := strings.TrimRight(baseURL, "/") + "/models"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, modelsURL, nil)
 	if err != nil {
 		return &ApiKeyTestResult{Available: false, Error: fmt.Sprintf("request error: %v", err)}

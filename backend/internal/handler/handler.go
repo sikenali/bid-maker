@@ -87,7 +87,10 @@ func (h *Handler) UploadDocument(c *gin.Context) {
 	defer src.Close()
 
 	buf := new(bytes.Buffer)
-	buf.ReadFrom(src)
+	if _, err := buf.ReadFrom(src); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to read file: %v", err)})
+		return
+	}
 
 	doc, err := h.docxService.ParseDocument(buf.Bytes())
 	if err != nil {
@@ -384,7 +387,10 @@ func (h *Handler) CreateTemplate(c *gin.Context) {
 	defer src.Close()
 
 	buf := new(bytes.Buffer)
-	buf.ReadFrom(src)
+	if _, err := buf.ReadFrom(src); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to read file: %v", err)})
+		return
+	}
 
 	doc, err := h.docxService.ParseDocument(buf.Bytes())
 	if err != nil {
