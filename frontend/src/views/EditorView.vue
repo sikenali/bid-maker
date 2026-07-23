@@ -31,7 +31,15 @@
         <OutlineTree @select="handleSelectSection" />
       </aside>
       <section class="center-panel">
-        <ContentEditor />
+        <DocxEditor
+          v-if="docStore.docxBuffer"
+          ref="editorRef"
+          :document-buffer="docStore.docxBuffer"
+          :show-menu-bar="true"
+          :show-toolbar="true"
+          :show-outline="false"
+          :read-only="false"
+        />
       </section>
       <aside class="right-panel">
         <AIChat />
@@ -41,25 +49,25 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDocumentStore } from '../stores/documentStore'
 import OutlineTree from '../components/OutlineTree.vue'
-import ContentEditor from '../components/ContentEditor.vue'
 import AIChat from '../components/AIChat.vue'
 import {
   RiRadarFill,
   RiQuestionLine,
   RiSettingsLine,
 } from '@remixicon/vue'
+import { DocxEditor } from '@eigenpal/docx-editor-vue'
 
 const props = defineProps<{ id: string }>()
 const router = useRouter()
 const docStore = useDocumentStore()
+const editorRef = ref<any>(null)
 
 const goSettings = () => router.push('/settings')
 const goHome = () => router.push('/')
-const showHelp = () => alert('文制星 - 标书智能生成工具\n\n编辑大纲 → AI辅助写作 → 导出标书')
 
 onMounted(() => {
   try {

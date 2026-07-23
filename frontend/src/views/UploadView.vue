@@ -74,6 +74,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { uploadDocument, getTemplate, updateOutline } from '../api/client'
 import { useSettingsStore } from '../stores/settingsStore'
+import { useDocumentStore } from '../stores/documentStore'
 import {
   RiRadarFill,
   RiQuestionLine,
@@ -86,7 +87,7 @@ import {
 const router = useRouter()
 const isDragOver = ref(false)
 const fileInput = ref<HTMLInputElement>()
-const loading = ref(false)
+const   loading = ref(false)
 const uploadProgress = ref(0)
 
 const goHome = () => router.push('/')
@@ -104,6 +105,9 @@ const handleFile = async (file: File) => {
     }
   }, 300)
   try {
+    // Convert file to ArrayBuffer for the docx editor before upload completes
+    const arrayBuffer = await file.arrayBuffer()
+
     const res = await uploadDocument(file)
     const docId = res.data.id
 
@@ -119,6 +123,10 @@ const handleFile = async (file: File) => {
         console.warn('Failed to apply template, using extracted outline')
       }
     }
+
+    // Store the raw buffer in document store so EditorView can use it
+    const docStore = useDocumentStore()
+    docStore.setDocxBuffer(arrayBuffer)
 
     clearInterval(interval)
     uploadProgress.value = 100

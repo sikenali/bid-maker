@@ -8,14 +8,15 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "vue": "^3.4.0",
-    "vue-router": "^4.3.0",
-    "pinia": "^2.1.0",
-    "axios": "^1.6.0",
-    "@tiptap/vue-3": "^2.4.0",
-    "@tiptap/starter-kit": "^2.4.0",
+    "@eigenpal/docx-editor-vue": "^1.9.0",
+    "@remixicon/vue": "^4.9.0",
     "@tiptap/pm": "^2.4.0",
-    "@remixicon/vue": "^4.9.0"
+    "@tiptap/starter-kit": "^2.4.0",
+    "@tiptap/vue-3": "^2.4.0",
+    "axios": "^1.6.0",
+    "pinia": "^2.1.0",
+    "vue": "^3.4.0",
+    "vue-router": "^4.3.0"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.0.0",

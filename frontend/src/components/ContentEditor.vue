@@ -21,9 +21,13 @@
           <RiFileListLine size="20" color="#8B7355" />
           <span>大纲提取</span>
         </button>
-        <button class="gen-btn bid-btn" @click="exportBid">
-          <RiFilePaper2Line size="20" color="#8B7355" />
+        <button class="gen-btn bid-btn" @click="generateBid">
+          <RiFilePaper2Line size="20" color="#fff" />
           <span>标书生成</span>
+        </button>
+        <button class="gen-btn export-btn" @click="exportBid">
+          <RiDownload2Line size="20" color="#8B7355" />
+          <span>导出标书</span>
         </button>
       </div>
     </div>
@@ -41,6 +45,7 @@ import {
   RiSaveLine,
   RiFileListLine,
   RiFilePaper2Line,
+  RiDownload2Line,
 } from '@remixicon/vue'
 import { exportDocument } from '../api/client'
 
@@ -99,9 +104,7 @@ watch(activeSectionId, async (newId) => {
     const section = docStore.sections.get(newId)
     editor.value.commands.setContent(section?.content || '<p></p>')
   }
-}, { immediate: false })
-
-const toggleAI = () => {}
+  }, { immediate: false })
 
 const extractOutline = async () => {
   if (!activeSectionId.value || !editor.value) return
@@ -172,16 +175,28 @@ function collectAllSections(sections: any[]): any[] {
 const exportBid = async () => {
   try {
     const fmt = settingsStore.exportFormat
-    const res = await exportDocument(docId.value, fmt)
-    const url = window.URL.createObjectURL(new Blob([res.data]))
-    const link = document.createElement('a')
-    const filename = fmt === 'md' ? 'bid-document.md' : 'bid-document.docx'
-    link.href = url
-    link.setAttribute('download', filename)
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    window.URL.revokeObjectURL(url)
+    if (fmt === 'md') {
+      const outline = docStore.getFullOutline()
+      const allSections = collectAllSections(outline)
+      let content = ''
+      for (let i = 0; i < allSections.length; i++) {
+        const sec = allSections[i]
+        content += `${'#'.repeat(sec.level || 1)} ${sec.title}\n\n${sec.content || ''}`
+        if (i < allSections.length - 1) {
+          content += '\n\n---\n\n'
+        }
+      }
+      const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = 'bid-document.md'
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } else {
+      alert('Word 格式导出需要后端支持，当前请先使用 Markdown 格式导出后再转换')
+    }
   } catch (err) {
     console.error('Export failed:', err)
     alert('导出失败，请重试')
@@ -352,5 +367,13 @@ const exportBid = async () => {
 
 .bid-btn span {
   color: #fff;
+}
+.export-btn:hover {
+  background: #E8DCC8;
+}
+
+.export-btn {
+  background: #F0E8D5;
+  color: #8B7355;
 }
 </style>

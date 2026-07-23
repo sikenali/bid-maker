@@ -157,15 +157,14 @@
                   v-for="(skill, idx) in displaySkills"
                   :key="skill.id + '-' + idx"
                   class="tpl-card"
-                  @click="selectedSkillCard = idx"
                 >
                   <div class="tpl-card-cover">
                     <div class="tpl-card-icon" :style="{ background: skill.iconBg }">
                       <component :is="skill.iconComp" :size="'24'" color="#ffffff" />
                     </div>
                     <span class="tpl-card-cat">{{ skill.category }}</span>
-                    <label class="toggle-switch-compact" @click.stop="handleToggleSkill(skill)">
-                      <input type="checkbox" :checked="handleIsEnabled(skill)" />
+                    <label class="toggle-switch-compact" @click.prevent="handleToggleSkill(skill)">
+                      <input type="checkbox" :checked="handleIsEnabled(skill)" @change="handleToggleSkill(skill)" />
                       <span class="toggle-slider"></span>
                     </label>
                     <button
@@ -408,13 +407,14 @@ interface NavItem {
   color: string
 }
 
-const navItems: NavItem[] = [
+const navItems = computed(() => [
   { id: 'theme', label: '主题设置', sublabel: 'Theme', title: '主题设置', desc: '选择你喜欢的界面风格', icon: RiPaletteLine, color: '#C23B22' },
-  { id: 'template', label: '模板设置', sublabel: 'Template', title: '模板设置', desc: '管理标书模板', icon: RiBookmarkLine, color: '#C8A45C' },
+  // TODO: 模板管理菜单后续再处理
+  // { id: 'template', label: '模板设置', sublabel: 'Template', title: '模板设置', desc: '管理标书模板', icon: RiBookmarkLine, color: '#C8A45C' },
   { id: 'skills', label: '技能管理', sublabel: 'Skills', title: '技能管理', desc: '管理 AI 写作技能', icon: RiFileListLine, color: '#5B8C5A' },
   { id: 'export', label: '导出设置', sublabel: 'Export', title: '导出设置', desc: '配置标书导出的默认格式', icon: RiFileDownloadLine, color: '#2D6A9F' },
-  { id: 'apikey', label: 'API Key', sublabel: '', title: 'API Key', desc: '管理 AI 模型密钥', icon: RiKeyLine, color: '#6366F1' },
-]
+  { id: 'apikey', label: 'API Key', sublabel: '', title: 'API Key', desc: 'API Key', icon: RiKeyLine, color: '#6366F1' },
+])
 
 const activeNav = ref('theme')
 const settingsStore = useSettingsStore()
@@ -440,7 +440,6 @@ const themes = [
   },
 ]
 
-const selectedSkillCard = ref(-1)
 const showMoreSkills = ref(false)
 const skillFileInput = ref<HTMLInputElement | null>(null)
 const showTemplateModal = ref(false)
@@ -544,24 +543,6 @@ const openAddSkillPicker = () => {
   skillFileInput.value?.click()
 }
 
-const openSkill = async (skill: { id: string; name: string; path: string }) => {
-  if (!skill.path) return
-  
-  currentSkillName.value = skill.name
-  showSkillPreview.value = true
-  
-  try {
-    const res = await fetch('/api/skills/content?path=' + encodeURIComponent(skill.path))
-    if (res.ok) {
-      currentSkillContent.value = await res.text()
-    } else {
-      currentSkillContent.value = '# ' + skill.name + '\n\n(无法加载技能文件内容)'
-    }
-  } catch {
-    currentSkillContent.value = '# ' + skill.name + '\n\n(加载失败，请检查技能文件路径)'
-  }
-}
-
 const closeSkillPreview = () => {
   showSkillPreview.value = false
   currentSkillContent.value = ''
@@ -647,7 +628,7 @@ const mdFeatures = [
   '兼容各类 Markdown 编辑器',
 ]
 
-const currentNav = computed(() => navItems.find(i => i.id === activeNav.value)!)
+const currentNav = computed(() => navItems.value.find(i => i.id === activeNav.value)!)
 
 const configTab = ref<'provider' | 'custom'>(
   (() => { try { const v = localStorage.getItem('cfg_tab'); return (v === 'provider' || v === 'custom') ? v : 'custom' } catch { return 'custom' } })()
@@ -820,7 +801,7 @@ function persistConfig() {
 }
 
 const indicatorStyle = computed(() => {
-  const idx = navItems.findIndex(i => i.id === activeNav.value)
+  const idx = navItems.value.findIndex(i => i.id === activeNav.value)
   const itemHeight = 56
   const gap = 2
   return {

@@ -15,6 +15,7 @@ export const useDocumentStore = defineStore('document', () => {
   const outline = ref<Section[]>([])
   const sections = ref<Map<string, Section>>(new Map())
   const activeSectionId = ref('')
+  const docxBuffer = ref<ArrayBuffer | null>(null)
 
   const loadOutline = async (docId: string) => {
     const res = await getOutline(docId)
@@ -52,5 +53,9 @@ export const useDocumentStore = defineStore('document', () => {
     return outline.value
   }
 
-  return { outline, sections, activeSectionId, loadOutline, loadSection, saveSectionContent, updateOutlineTree, getFullOutline }
+  const setDocxBuffer = (buffer: ArrayBuffer) => {
+    docxBuffer.value = buffer
+  }
+
+  return { outline, sections, activeSectionId, docxBuffer, loadOutline, loadSection, saveSectionContent, updateOutlineTree, getFullOutline, setDocxBuffer }
 })
