@@ -1,13 +1,18 @@
 <template>
-  <div id="app" :class="'theme-' + settingsStore.theme">
+  <div id="app">
     <router-view />
   </div>
 </template>
 
 <script setup lang="ts">
+import { watch } from 'vue'
 import { useSettingsStore } from './stores/settingsStore'
 
 const settingsStore = useSettingsStore()
+
+watch(() => settingsStore.theme, (t) => {
+  document.body.className = 'theme-' + t
+}, { immediate: true })
 </script>
 
 <style>
@@ -20,21 +25,19 @@ const settingsStore = useSettingsStore()
 body {
   font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Source Han Sans CN', 'Microsoft YaHei', sans-serif;
   color: #3D2B1F;
+  transition: background-color 0.3s, color 0.3s;
 }
 
-.theme-light body,
-.theme-light {
+body.theme-light {
   background-color: #FDF6E3;
 }
 
-.theme-dark body,
-.theme-dark {
+body.theme-dark {
   background-color: #2C2416;
   color: #E8DCC8;
 }
 
-.theme-paper body,
-.theme-paper {
+body.theme-paper {
   background-color: #FFFFFF;
 }
 
