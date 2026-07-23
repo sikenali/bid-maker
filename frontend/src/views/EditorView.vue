@@ -11,6 +11,12 @@
         </div>
       </div>
       <div class="nav-actions">
+        <button class="nav-btn" title="导出" @click="handleExportDocx">
+          <span class="nav-btn-content">
+            <RiDownloadLine size="20" />
+            <span class="nav-btn-label">导出</span>
+          </span>
+        </button>
         <button class="nav-btn" title="上传" @click="goHome">
           <span class="nav-btn-content">
             <RiQuestionLine size="20" />
@@ -43,7 +49,7 @@
         />
       </section>
       <aside class="right-panel">
-        <AIChat />
+        <AIChat :doc-id="props.id" :editor-ref="editorRef" :docx-buffer="docStore.docxBuffer" @export-docx="handleExportDocx" />
       </aside>
     </main>
   </div>
@@ -59,6 +65,7 @@ import {
   RiRadarFill,
   RiQuestionLine,
   RiSettingsLine,
+  RiDownloadLine,
 } from '@remixicon/vue'
 import { DocxEditor } from '@eigenpal/docx-editor-vue'
 
@@ -79,6 +86,28 @@ onMounted(() => {
 })
 
 onUnmounted(() => {})
+
+async function handleExportDocx() {
+  if (!editorRef.value) {
+    alert('编辑器尚未就绪')
+    return
+  }
+  try {
+    const buffer = await editorRef.value.save()
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `标书_${props.id}_${new Date().toISOString().slice(0, 10)}.docx`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  } catch (err) {
+    console.error('Export failed:', err)
+    alert('导出失败，请重试')
+  }
+}
 
 // Extract heading pmPos values by scanning the rendered document DOM.
 // @eigenpal renders spans with data-pm-start for each paragraph element,
@@ -154,24 +183,6 @@ function handleEditorReady() {
       /* ignore */
     }
   }, interval)
-}
-
-const handleSelectSection = (sectionId: string) => {
-  const tree = docStore.outline
-  let pmPos: number | undefined
-  for (let i = 0; i < tree.length; i++) {
-    if (tree[i].id === sectionId) { pmPos = tree[i].pmPos; break }
-    if (tree[i].children?.length) {
-      for (const child of tree[i].children) {
-        if (child.id === sectionId) { pmPos = child.pmPos; break }
-      }
-    }
-    if (pmPos !== undefined) break
-  }
-  if (pmPos !== undefined && editorRef.value?.scrollToPosition) {
-    editorRef.value.scrollToPosition(pmPos)
-  }
-  docStore.loadSection(props.id, sectionId)
 }
 
 const handleSelectSection = (sectionId: string) => {

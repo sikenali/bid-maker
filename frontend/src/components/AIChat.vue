@@ -39,6 +39,13 @@
         <div class="bubble ai-bubble">思考中...</div>
       </div>
     </div>
+    <div class="chat-actions-bar">
+      <button class="export-btn" @click="handleExport" :disabled="!editorRef">
+        <RiFileDownloadLine size="14" />
+        <span>导出DOCX</span>
+      </button>
+      <div class="divider" />
+    </div>
     <div class="chat-input-area">
       <div class="input-container" ref="inputContainerRef">
         <!-- Skill chip overlay -->
@@ -78,23 +85,35 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useChatStore } from '../stores/chatStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useDocumentStore } from '../stores/documentStore'
 import ModelSelect from './ModelSelect.vue'
+import type { DocxEditor } from '@eigenpal/docx-editor-vue'
 import {
   RiSparklingFill,
   RiSendPlaneFill,
   RiCloseLine,
+  RiFileDownloadLine,
 } from '@remixicon/vue'
+
+const props = defineProps<{
+  docId?: string
+  editorRef?: any
+  docxBuffer?: ArrayBuffer | null
+}>()
+
+const emit = defineEmits<{
+  exportDocx: []
+}>()
 
 const chatStore = useChatStore()
 const settingsStore = useSettingsStore()
 const docStore = useDocumentStore()
 const route = useRoute()
-const docId = route.params.id as string
+const resolvedDocId = props.docId || (route.params.id as string)
 const inputText = ref('')
 const messagesRef = ref<HTMLElement>()
 
@@ -259,7 +278,7 @@ const handleSend = () => {
   inputText.value = ''
   const sectionId = chatStore.mode === 'context' ? docStore.activeSectionId : undefined
 
-  chatStore.sendMessage(text, sectionId, docId, selectedModelId.value)
+  chatStore.sendMessage(text, sectionId, resolvedDocId, selectedModelId.value)
   scrollToBottom()
 }
 
@@ -268,6 +287,46 @@ const scrollToBottom = async () => {
   if (messagesRef.value) {
     messagesRef.value.scrollTop = messagesRef.value.scrollHeight
   }
+}
+
+// Listen for new AI messages and auto-apply content to editor via prosemirror API.
+let lastMsgCount = 0
+onMounted(() => { lastMsgCount = chatStore.messages.length })
+
+watch(
+  () => chatStore.messages.length,
+  async (len) => {
+    if (len <= lastMsgCount) return
+    lastMsgCount = len
+    const aiMsg = chatStore.messages[len - 1]
+    if (!aiMsg || aiMsg.role !== 'ai' || !aiMsg.content.trim()) return
+    tryApplyAIContent(aiMsg.content)
+  },
+)
+
+async function tryApplyAIContent(content: string) {
+  if (!props.editorRef?.value) return
+  const editor = props.editorRef.value as InstanceType<typeof DocxEditor> | null
+  if (!editor) return
+
+  // Use setContentControlContent or setContent if available on the editor instance
+  try {
+    const sectionId = chatStore.mode === 'context' ? docStore.activeSectionId : undefined
+    if (sectionId && (editor as any).setContentControlContent) {
+      ;(editor as any).setContentControlContent(sectionId, content)
+    } else if (editor.setContent) {
+      editor.setContent(content)
+    } else {
+      // Fallback: emit export request instead of auto-applying unstructured content
+      console.warn('AI content received but no applicable editor method found')
+    }
+  } catch {
+    console.warn('Failed to apply AI content to editor')
+  }
+}
+
+async function handleExport() {
+  emit('exportDocx')
 }
 </script>
 
@@ -306,6 +365,43 @@ const scrollToBottom = async () => {
   font-size: 14px;
   font-weight: 600;
   color: #3D2B1F;
+}
+
+.chat-actions-bar {
+  display: flex;
+  align-items: center;
+  padding: 0 16px 8px;
+  gap: 8px;
+}
+
+.export-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border: none;
+  border-radius: 6px;
+  background: #C23B22;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.export-btn:hover {
+  background: #A83028;
+}
+
+.export-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.divider {
+  flex: 1;
+  height: 1px;
+  background: #E0D5C0;
 }
 
 .model-select-wrap {
