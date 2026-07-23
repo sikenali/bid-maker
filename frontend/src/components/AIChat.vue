@@ -155,16 +155,17 @@ const tryGetHiddenSkills = () => {
 // Build cmd-ready skills: only show skills that exist in skill management and are enabled
 const cmdSkills = computed(() => {
   const hidden = tryGetHiddenSkills()
+  const localIds = new Set(settingsStore.localSkills.map(s => s.id))
+  const customIds = new Set(settingsStore.customSkills.map(s => s.id))
   return settingsStore.allSkills
     .filter(s => {
-      // Only show skills that exist in skill management (local + custom)
-      if (!s.id.startsWith('custom_') && !s.path && !s.id.startsWith('local_')) return false
+      if (!localIds.has(s.id) && !customIds.has(s.id)) return false
       if (hidden.has(s.id)) return false
-      if (s.id.startsWith('custom_')) {
+      if (customIds.has(s.id)) {
         const customSkill = settingsStore.customSkills.find(cs => cs.id === s.id)
         if (!customSkill || customSkill.enabled === false) return false
       }
-      if (s.path || s.id.startsWith('local_')) {
+      if (localIds.has(s.id)) {
         const localSkill = settingsStore.localSkills.find(ls => ls.id === s.id)
         if (!localSkill || localSkill.enabled === false) return false
       }

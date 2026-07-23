@@ -468,7 +468,7 @@ const isSkillVisible = (skill: any) => !hiddenSkills.value.has(skill.id)
 const handleToggleSkill = (skill: { id: string; path?: string }) => {
   if (skill.id.startsWith('custom_')) {
     settingsStore.toggleSkillEnabled(skill.id)
-  } else if (skill.path) {
+  } else {
     const localSkill = settingsStore.localSkills.find(s => s.id === skill.id)
     if (localSkill) {
       localSkill.enabled = !localSkill.enabled
