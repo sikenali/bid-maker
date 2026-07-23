@@ -1,8 +1,11 @@
 package service
 
 import (
+	"archive/zip"
 	"bytes"
+	"encoding/xml"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -19,6 +22,8 @@ func NewDocxService() *DocxService {
 	return &DocxService{Keyword: "投标文件"}
 }
 
+// ---------- unioffice helpers ----------
+
 func paragraphText(para document.Paragraph) string {
 	var sb strings.Builder
 	for _, r := range para.Runs() {
@@ -27,7 +32,7 @@ func paragraphText(para document.Paragraph) string {
 	return sb.String()
 }
 
-func isHeading(para document.Paragraph) (bool, int) {
+func isHeadingUnioffice(para document.Paragraph) (bool, int) {
 	props := para.X().PPr
 	if props != nil && props.PStyle != nil {
 		styleVal := props.PStyle.ValAttr
@@ -50,112 +55,7 @@ func isHeading(para document.Paragraph) (bool, int) {
 	return false, 0
 }
 
-func (s *DocxService) ParseDocument(data []byte) (*model.Document, error) {
-	tmpFile, err := os.CreateTemp("", "bid-*.docx")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create temp file: %w", err)
-	}
-	defer os.Remove(tmpFile.Name())
-
-	if _, err := tmpFile.Write(data); err != nil {
-		tmpFile.Close()
-		return nil, fmt.Errorf("failed to write temp file: %w", err)
-	}
-	tmpFile.Close()
-
-	doc, err := document.Open(tmpFile.Name())
-	if err != nil {
-		return nil, fmt.Errorf("failed to open docx with unioffice: %w", err)
-	}
-	defer doc.Close()
-
-	paras := doc.Paragraphs()
-	filtered := s.extractSectionsWithKeyword(paras, s.Keyword)
-	if filtered == nil {
-		sections := s.extractSections(paras)
-		filtered = sections
-	}
-
-	id := fmt.Sprintf("doc-%d", time.Now().Unix())
-	title := "Untitled Document"
-	if len(filtered) > 0 {
-		title = filtered[0].Title
-	}
-
-	return &model.Document{
-		ID:        id,
-		Title:     title,
-		Outline:   filtered,
-		CreatedAt: time.Now().UTC(),
-		UpdatedAt: time.Now().UTC(),
-	}, nil
-}
-
-func (s *DocxService) extractSections(paras []document.Paragraph) []model.Section {
-	var sections []model.Section
-	var parentStack []*model.Section
-
-	for _, p := range paras {
-		text := strings.TrimSpace(paragraphText(p))
-		if text == "" {
-			continue
-		}
-
-		isH, level := isHeading(p)
-		if isH {
-			section := model.Section{
-				ID:    fmt.Sprintf("sec-%d", len(sections)+1),
-				Title: text,
-				Level: level,
-			}
-
-			for len(parentStack) > 0 && parentStack[len(parentStack)-1].Level >= level {
-				parentStack = parentStack[:len(parentStack)-1]
-			}
-
-			if len(parentStack) > 0 {
-				parent := parentStack[len(parentStack)-1]
-				parent.Children = append(parent.Children, section)
-				parentStack = append(parentStack, &parent.Children[len(parent.Children)-1])
-			} else {
-				sections = append(sections, section)
-				parentStack = append(parentStack, &sections[len(sections)-1])
-			}
-		} else if len(sections) > 0 {
-			last := findLeaf(&sections[len(sections)-1])
-			if last.Content != "" {
-				last.Content += "\n"
-			}
-			last.Content += text
-		}
-	}
-
-	return sections
-}
-
-func findLeaf(sec *model.Section) *model.Section {
-	if len(sec.Children) == 0 || sec.Content != "" {
-		return sec
-	}
-	return findLeaf(&sec.Children[len(sec.Children)-1])
-}
-
-func (s *DocxService) filterKeywordOutline(sections []model.Section, keyword string) []model.Section {
-	for i, sec := range sections {
-		if strings.Contains(sec.Title, keyword) {
-			return sec.Children
-		}
-		if strings.Contains(sec.Content, keyword) {
-			return sections[i:]
-		}
-		if found := s.filterKeywordOutline(sec.Children, keyword); found != nil {
-			return found
-		}
-	}
-	return nil
-}
-
-func (s *DocxService) extractSectionsWithKeyword(paras []document.Paragraph, keyword string) []model.Section {
+func (s *DocxService) extractSectionsWithKeywordUnioffice(paras []document.Paragraph, keyword string) []model.Section {
 	var sections []model.Section
 	var parentStack []*model.Section
 	keywordFound := false
@@ -166,7 +66,7 @@ func (s *DocxService) extractSectionsWithKeyword(paras []document.Paragraph, key
 			continue
 		}
 
-		isH, level := isHeading(p)
+		isH, level := isHeadingUnioffice(p)
 
 		if !keywordFound {
 			if isH && strings.Contains(text, keyword) {
@@ -211,9 +111,320 @@ func (s *DocxService) extractSectionsWithKeyword(paras []document.Paragraph, key
 	if len(sections) == 0 {
 		return nil
 	}
+	return sections
+}
+
+func (s *DocxService) extractSectionsUnioffice(paras []document.Paragraph) []model.Section {
+	var sections []model.Section
+	var parentStack []*model.Section
+
+	for _, p := range paras {
+		text := strings.TrimSpace(paragraphText(p))
+		if text == "" {
+			continue
+		}
+
+		isH, level := isHeadingUnioffice(p)
+		if isH {
+			section := model.Section{
+				ID:    fmt.Sprintf("sec-%d", len(sections)+1),
+				Title: text,
+				Level: level,
+			}
+
+			for len(parentStack) > 0 && parentStack[len(parentStack)-1].Level >= level {
+				parentStack = parentStack[:len(parentStack)-1]
+			}
+
+			if len(parentStack) > 0 {
+				parent := parentStack[len(parentStack)-1]
+				parent.Children = append(parent.Children, section)
+				parentStack = append(parentStack, &parent.Children[len(parent.Children)-1])
+			} else {
+				sections = append(sections, section)
+				parentStack = append(parentStack, &sections[len(sections)-1])
+			}
+		} else if len(sections) > 0 {
+			last := findLeaf(&sections[len(sections)-1])
+			if last.Content != "" {
+				last.Content += "\n"
+			}
+			last.Content += text
+		}
+	}
 
 	return sections
 }
+
+// ---------- manual XML fallback types ----------
+
+const nsW = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+
+type wDoc struct {
+	XMLName xml.Name `xml:"http://schemas.openxmlformats.org/wordprocessingml/2006/main document"`
+	Body    wBody    `xml:"http://schemas.openxmlformats.org/wordprocessingml/2006/main body"`
+}
+
+type wBody struct {
+	Paragraphs []wPara `xml:"http://schemas.openxmlformats.org/wordprocessingml/2006/main p"`
+}
+
+type wPara struct {
+	Props *wParaProps `xml:"http://schemas.openxmlformats.org/wordprocessingml/2006/main pPr"`
+	Runs  []wRun      `xml:"http://schemas.openxmlformats.org/wordprocessingml/2006/main r"`
+}
+
+type wParaProps struct {
+	Style *wStyle `xml:"http://schemas.openxmlformats.org/wordprocessingml/2006/main pStyle"`
+}
+
+type wStyle struct {
+	Val string `xml:"val,attr"`
+}
+
+type wRun struct {
+	Texts []wText `xml:"http://schemas.openxmlformats.org/wordprocessingml/2006/main t"`
+}
+
+type wText struct {
+	Text string `xml:",chardata"`
+}
+
+func extractTextXml(runs []wRun) string {
+	var b strings.Builder
+	for _, r := range runs {
+		for _, t := range r.Texts {
+			b.WriteString(t.Text)
+		}
+	}
+	return b.String()
+}
+
+func headingLevelXml(p wPara) int {
+	if p.Props == nil || p.Props.Style == nil {
+		return 0
+	}
+	style := p.Props.Style.Val
+	var level int
+	if n, _ := fmt.Sscanf(style, "Heading %d", &level); n == 1 && level >= 1 && level <= 9 {
+		return level
+	}
+	if n, _ := fmt.Sscanf(style, "Heading%d", &level); n == 1 && level >= 1 && level <= 9 {
+		return level
+	}
+	return 0
+}
+
+func (s *DocxService) extractSectionsXml(paras []wPara, keyword string) []model.Section {
+	var sections []model.Section
+	var parentStack []*model.Section
+	keywordFound := false
+
+	for _, p := range paras {
+		text := strings.TrimSpace(extractTextXml(p.Runs))
+		if text == "" {
+			continue
+		}
+
+		level := headingLevelXml(p)
+
+		if !keywordFound {
+			if level > 0 && strings.Contains(text, keyword) {
+				keywordFound = true
+				continue
+			}
+			if level == 0 && strings.Contains(text, keyword) {
+				keywordFound = true
+				continue
+			}
+			continue
+		}
+
+		if level > 0 {
+			section := model.Section{
+				ID:    fmt.Sprintf("sec-%d", len(sections)+1),
+				Title: text,
+				Level: level,
+			}
+
+			for len(parentStack) > 0 && parentStack[len(parentStack)-1].Level >= level {
+				parentStack = parentStack[:len(parentStack)-1]
+			}
+
+			if len(parentStack) > 0 {
+				parent := parentStack[len(parentStack)-1]
+				parent.Children = append(parent.Children, section)
+				parentStack = append(parentStack, &parent.Children[len(parent.Children)-1])
+			} else {
+				sections = append(sections, section)
+				parentStack = append(parentStack, &sections[len(sections)-1])
+			}
+		} else if len(sections) > 0 {
+			last := findLeaf(&sections[len(sections)-1])
+			last.Content += text + "\n"
+		}
+	}
+
+	if len(sections) == 0 {
+		// Fallback: treat entire doc as one section with content
+		var allText strings.Builder
+		for _, p := range paras {
+			text := strings.TrimSpace(extractTextXml(p.Runs))
+			if text == "" {
+				continue
+			}
+			if allText.Len() > 0 {
+				allText.WriteRune('\n')
+			}
+			allText.WriteString(text)
+		}
+		if allText.Len() > 0 {
+			return []model.Section{{
+				ID:      "sec-1",
+				Title:   "全文",
+				Level:   1,
+				Content: allText.String(),
+			}}
+		}
+	}
+
+	return sections
+}
+
+func (s *DocxService) filterKeywordOutline(sections []model.Section, keyword string) []model.Section {
+	for i, sec := range sections {
+		if strings.Contains(sec.Title, keyword) {
+			return sec.Children
+		}
+		if strings.Contains(sec.Content, keyword) {
+			return sections[i:]
+		}
+		if found := s.filterKeywordOutline(sec.Children, keyword); found != nil {
+			return found
+		}
+	}
+	return nil
+}
+
+func findLeaf(sec *model.Section) *model.Section {
+	if len(sec.Children) == 0 || sec.Content != "" {
+		return sec
+	}
+	return findLeaf(&sec.Children[len(sec.Children)-1])
+}
+
+// ---------- main entry point ----------
+
+func (s *DocxService) ParseDocument(data []byte) (*model.Document, error) {
+	// Try unioffice first
+	doc, err := s.parseWithUnioffice(data)
+	if err != nil {
+		return nil, err
+	}
+
+	// If unioffice returned nothing, fall back to manual XML parsing
+	if len(doc.Outline) == 0 {
+		doc, err = s.parseWithXmlFallback(data)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return doc, nil
+}
+
+func (s *DocxService) parseWithUnioffice(data []byte) (*model.Document, error) {
+	tmpFile, err := os.CreateTemp("", "bid-*.docx")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create temp file: %w", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	if _, err := tmpFile.Write(data); err != nil {
+		tmpFile.Close()
+		return nil, fmt.Errorf("failed to write temp file: %w", err)
+	}
+	tmpFile.Close()
+
+	doc, err := document.Open(tmpFile.Name())
+	if err != nil {
+		return nil, fmt.Errorf("failed to open docx with unioffice: %w", err)
+	}
+	defer doc.Close()
+
+	paras := doc.Paragraphs()
+	filtered := s.extractSectionsWithKeywordUnioffice(paras, s.Keyword)
+	if filtered == nil {
+		sections := s.extractSectionsUnioffice(paras)
+		filtered = sections
+	}
+
+	id := fmt.Sprintf("doc-%d", time.Now().Unix())
+	title := "Untitled Document"
+	if len(filtered) > 0 {
+		title = filtered[0].Title
+	}
+
+	return &model.Document{
+		ID:        id,
+		Title:     title,
+		Outline:   filtered,
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}, nil
+}
+
+func (s *DocxService) parseWithXmlFallback(data []byte) (*model.Document, error) {
+	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to open docx as zip: %w", err)
+	}
+
+	var docXML []byte
+	for _, f := range zr.File {
+		if f.Name == "word/document.xml" {
+			rc, err := f.Open()
+			if err != nil {
+				continue
+			}
+			docXML, err = io.ReadAll(rc)
+			rc.Close()
+			if err != nil {
+				continue
+			}
+			break
+		}
+	}
+	if docXML == nil {
+		return nil, fmt.Errorf("invalid docx: word/document.xml not found")
+	}
+
+	var doc wDoc
+	if err := xml.Unmarshal(docXML, &doc); err != nil {
+		return nil, fmt.Errorf("failed to parse document xml: %w", err)
+	}
+
+	sections := s.extractSectionsXml(doc.Body.Paragraphs, s.Keyword)
+	if sections == nil {
+		sections = []model.Section{}
+	}
+
+	id := fmt.Sprintf("doc-%d", time.Now().Unix())
+	title := "Untitled Document"
+	if len(sections) > 0 {
+		title = sections[0].Title
+	}
+
+	return &model.Document{
+		ID:        id,
+		Title:     title,
+		Outline:   sections,
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}, nil
+}
+
+// ---------- Document generation (unchanged) ----------
 
 func (s *DocxService) GenerateDocument(doc *model.Document) ([]byte, error) {
 	return s.generateDocumentXML(doc)
