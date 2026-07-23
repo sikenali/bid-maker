@@ -719,7 +719,6 @@ const saveSettings = () => {
   }
   persistConfig()
   alert('设置已保存')
-  router.push('/')
 }
 
 const resetForm = () => {
