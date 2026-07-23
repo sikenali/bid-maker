@@ -105,16 +105,10 @@ const selectedModelId = ref(
 )
 
 const modelItems = computed(() => {
-  const items = settingsStore.apiKeys.map(k => ({
+  return settingsStore.apiKeys.map(k => ({
     id: k.id,
     name: k.modelName,
   }))
-  for (const m of settingsStore.allModels) {
-    if (!items.find(i => i.id === m.id)) {
-      items.push({ id: m.id, name: m.name })
-    }
-  }
-  return items
 })
 
 const onModelChange = (id: string) => {
