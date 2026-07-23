@@ -194,8 +194,7 @@ const handleSelectSection = (sectionId: string) => {
 }
 
 .center-panel {
-  flex: 0 0 50%;
-  max-width: 55%;
+  flex: 1;
   background: #fff;
   border-radius: 12px;
   overflow: hidden;
@@ -205,8 +204,8 @@ const handleSelectSection = (sectionId: string) => {
 }
 
 .right-panel {
-  flex: 1;
-  min-width: 300px;
+  width: 380px;
+  flex-shrink: 0;
   background: #FBF7EF;
   border-radius: 12px;
   overflow: hidden;
