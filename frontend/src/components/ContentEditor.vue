@@ -1,3 +1,5 @@
+<!-- DEPRECATED: Replaced by @eigenpal/docx-editor-vue (DocxEditor component). -->
+<!-- This component is dead code and kept for reference only. -->
 <template>
   <div class="content-editor">
     <div class="editor-header">

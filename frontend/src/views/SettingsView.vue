@@ -1869,46 +1869,9 @@ const indicatorStyle = computed(() => {
   background: rgba(139, 115, 85, 0.08);
 }
 
-/* ── Toggle Switch (inside skill card, top-left) ── */
+/* ── Toggle Switch ── */
+.toggle-switch,
 .toggle-switch-compact {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 20px;
-  border-radius: 999px;
-  background: #D4C4A8;
-  cursor: pointer;
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  flex-shrink: 0;
-  transition: background 0.2s;
-}
-
-.toggle-switch-compact input {
-  display: none;
-}
-
-.toggle-switch-compact .toggle-slider {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #fff;
-  transition: transform 0.2s;
-}
-
-.toggle-switch-compact input:checked + .toggle-slider {
-  transform: translateX(16px);
-}
-
-.toggle-switch-compact:has(input:checked) {
-  background: #C23B22;
-}
-.toggle-switch {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1922,11 +1885,13 @@ const indicatorStyle = computed(() => {
   transition: background 0.2s;
 }
 
-.toggle-switch input {
+.toggle-switch input,
+.toggle-switch-compact input {
   display: none;
 }
 
-.toggle-switch .toggle-slider {
+.toggle-switch .toggle-slider,
+.toggle-switch-compact .toggle-slider {
   position: absolute;
   top: 2px;
   left: 2px;
@@ -1937,12 +1902,20 @@ const indicatorStyle = computed(() => {
   transition: transform 0.2s;
 }
 
-.toggle-switch input:checked + .toggle-slider {
+.toggle-switch input:checked + .toggle-slider,
+.toggle-switch-compact input:checked + .toggle-slider {
   transform: translateX(16px);
 }
 
-.toggle-switch:has(input:checked) {
+.toggle-switch:has(input:checked),
+.toggle-switch-compact:has(input:checked) {
   background: #C23B22;
+}
+
+.toggle-switch-compact {
+  position: absolute;
+  top: 12px;
+  left: 12px;
 }
 
 /* ── Test Button ── */
