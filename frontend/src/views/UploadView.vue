@@ -11,10 +11,10 @@
         </div>
       </div>
       <div class="nav-actions">
-        <button class="nav-btn" title="帮助" @click="showHelp">
+        <button class="nav-btn" title="上传" @click="goHome">
           <span class="nav-btn-content">
             <RiQuestionLine size="20" />
-            <span class="nav-btn-label">帮助</span>
+            <span class="nav-btn-label">上传</span>
           </span>
         </button>
         <button class="nav-btn" title="设置" @click="goSettings">
