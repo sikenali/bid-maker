@@ -187,7 +187,7 @@ func TestApiKey(provider string, apiKey string, model string, customEndpoint str
 	case "anthropic":
 		return testAnthropicMinimal(apiKey, model)
 	default:
-		baseURL := getDefaultBaseURL(provider)
+		baseURL := normalizeEndpoint(getDefaultBaseURL(provider))
 		return testModelsEndpoint(baseURL, apiKey)
 	}
 }

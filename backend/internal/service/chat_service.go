@@ -86,6 +86,10 @@ func (s *ChatService) Chat(ctx context.Context, req ChatRequest, doc *model.Docu
 }
 
 func (s *ChatService) chatWithCustomEndpoint(ctx context.Context, req ChatRequest, doc *model.Document) (*ChatResponse, error) {
+	if req.APIKey == "" {
+		return nil, fmt.Errorf("API key is required for custom endpoint")
+	}
+
 	var messages []Message
 
 	if req.Mode == "context" && req.SectionID != "" && doc != nil {
@@ -193,7 +197,9 @@ func (s *ChatService) chatAnthropic(ctx context.Context, baseURL string, message
 
 	var systemMsg string
 	if len(openAIMessages) > 0 && openAIMessages[0]["role"] == "system" {
-		systemMsg = openAIMessages[0]["content"].(string)
+		if content, ok := openAIMessages[0]["content"].(string); ok {
+			systemMsg = content
+		}
 		openAIMessages = openAIMessages[1:]
 	}
 

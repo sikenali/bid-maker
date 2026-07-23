@@ -376,7 +376,11 @@ func (h *Handler) CreateTemplate(c *gin.Context) {
 		return
 	}
 
-	src, _ := fileHeader.Open()
+	src, err := fileHeader.Open()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to open file: %v", err)})
+		return
+	}
 	defer src.Close()
 
 	buf := new(bytes.Buffer)

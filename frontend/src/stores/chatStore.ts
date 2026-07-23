@@ -38,9 +38,10 @@ export const useChatStore = defineStore('chat', () => {
         apiKey: apiKeyEntry?.key || '',
       })
       messages.push({ role: 'ai', content: res.data.reply || res.data.response || '' })
-    } catch (err) {
+    } catch (err: any) {
       console.error('Chat failed:', err)
-      messages.push({ role: 'ai', content: '抱歉，出了点问题。' })
+      const msg = err?.response?.data?.error || '抱歉，出了点问题。'
+      messages.push({ role: 'ai', content: msg })
     } finally {
       isSending.value = false
     }
