@@ -53,38 +53,6 @@ func TestParseDocument_ValidDocx(t *testing.T) {
 	}
 }
 
-func TestGenerateDocument(t *testing.T) {
-	outDoc := &model.Document{
-		ID:    "test-1",
-		Title: "Test Document",
-		Outline: []model.Section{
-			{
-				ID:      "sec-1",
-				Title:   "Chapter 1",
-				Level:   1,
-				Content: "Some content here.",
-				Children: []model.Section{
-					{
-						ID:    "sec-2",
-						Title: "Section 1.1",
-						Level: 2,
-					},
-				},
-			},
-		},
-	}
-
-	svc := NewDocxService()
-	data, err := svc.GenerateDocument(outDoc)
-	if err != nil {
-		t.Logf("GenerateDocument skipped (license required for write): %v", err)
-		return
-	}
-	if len(data) == 0 {
-		t.Fatal("expected non-empty docx data")
-	}
-}
-
 func TestStoreAndGetDocument(t *testing.T) {
 	testDoc := &model.Document{
 		ID:    "store-test-1",

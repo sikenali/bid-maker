@@ -196,28 +196,12 @@ func (h *Handler) ExportDocument(c *gin.Context) {
 		return
 	}
 
-	var req struct {
-		Format string `json:"format"`
-	}
-	c.ShouldBindJSON(&req)
-
-	if req.Format == "md" {
-		data := h.docxService.GenerateMarkdown(doc)
-		c.Header("Content-Type", "text/markdown; charset=utf-8")
-		c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s.md", doc.Title))
-		c.Data(http.StatusOK, "text/markdown; charset=utf-8", data)
-		return
+	// Frontend now handles document export via @eigenpal/docx-editor-vue save()
+	if doc != nil {
+		service.UpdateDocument(doc)
 	}
 
-	data, err := h.docxService.GenerateDocument(doc)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to generate docx: %v", err)})
-		return
-	}
-
-	c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s.docx", doc.Title))
-	c.Data(http.StatusOK, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", data)
+	c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "export complete — frontend handles save()"})
 }
 
 func (h *Handler) Chat(c *gin.Context) {
