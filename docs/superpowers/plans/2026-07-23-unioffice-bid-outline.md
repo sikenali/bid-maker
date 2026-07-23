@@ -1,3 +1,80 @@
+# unioffice Bid Outline Extraction Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Replace manual DOCX XML parsing with unioffice, extract the subtree under "投标文件" heading as outline.
+
+**Architecture:** Backend-only change. `docx_service.go` rewritten to use `unioffice` for DOCX parsing. Parse flow: open DOCX via unioffice → iterate paragraphs → build Section tree → find "投标文件" subtree → return as outline. Frontend unchanged.
+
+**Tech Stack:** Go, unioffice (fork: `github.com/sikenali/unioffice/v2`)
+
+## Global Constraints
+
+- unioffice fork: `github.com/sikenali/unioffice/v2 v2.0.0-20260701084101-423612299d83`
+- Data model (`Section` / `Document`) unchanged
+- API routes unchanged
+- Heading detection: `para.X().PPr.PStyle.ValAttr` matching `Heading1`-`Heading9` and Chinese variants
+- Keyword: "投标文件" (configurable)
+- If keyword not found, return empty outline
+- If no headings found in document, return empty outline
+
+---
+
+### Task 1: Add unioffice dependency
+
+**Files:**
+- Modify: `backend/go.mod`
+
+**Interfaces:**
+- Consumes: nothing
+- Produces: unioffice available in module
+
+- [ ] **Step 1: Add require and replace directives**
+
+  Edit `backend/go.mod`, add after existing `require` block:
+
+```
+require github.com/unidoc/unioffice/v2 v2.12.0
+```
+
+  Add at end of file:
+
+```
+replace github.com/unidoc/unioffice/v2 => github.com/sikenali/unioffice/v2 v2.0.0-20260701084101-423612299d83
+```
+
+- [ ] **Step 2: Run go mod tidy**
+
+  Run: `cd backend && go mod tidy`
+  Expected: no errors, `go.sum` updated
+
+- [ ] **Step 3: Verify dependency works**
+
+  Run: `cd backend && go build ./...`
+  Expected: no errors
+
+- [ ] **Step 4: Commit**
+
+  Run: `git add backend/go.mod backend/go.sum && git commit -m "chore: add unioffice dependency"`
+
+---
+
+### Task 2: Rewrite docx_service.go with unioffice
+
+**Files:**
+- Rewrite: `backend/internal/service/docx_service.go` (entire file)
+
+**Interfaces:**
+- Consumes: `model.Document`, `model.Section` from `internal/model`
+- Produces: `ParseDocument([]byte) (*model.Document, error)` — same signature as before
+- Produces: `GenerateDocument(*model.Document) ([]byte, error)` — keep existing implementation
+- Produces: `GenerateMarkdown(*model.Document) []byte` — keep existing implementation
+
+- [ ] **Step 1: Write the new file**
+
+  Replace entire docx_service.go with:
+
+```go
 package service
 
 import (
@@ -150,6 +227,7 @@ func (s *DocxService) filterKeywordOutline(sections []model.Section, keyword str
 }
 
 func (s *DocxService) GenerateDocument(doc *model.Document) ([]byte, error) {
+	// Keep existing implementation using manual XML generation
 	return s.generateDocumentXML(doc)
 }
 
@@ -162,9 +240,9 @@ func (s *DocxService) generateDocumentXML(doc *model.Document) ([]byte, error) {
 	rels := s.buildRels()
 
 	for name, data := range map[string]string{
-		"[Content_Types].xml":          contentTypes,
-		"word/document.xml":            docContent,
-		"word/_rels/document.xml.rels": rels,
+		"[Content_Types].xml":               contentTypes,
+		"word/document.xml":                 docContent,
+		"word/_rels/document.xml.rels":      rels,
 	} {
 		if err := w.AddFile(name, []byte(data)); err != nil {
 			return nil, fmt.Errorf("failed to create %s in zip: %w", name, err)
@@ -265,3 +343,135 @@ func (s *DocxService) writeSectionMarkdown(b *strings.Builder, sec *model.Sectio
 func NowUTC() time.Time {
 	return time.Now().UTC()
 }
+```
+
+- [ ] **Step 2: Add ZipWriter helper**
+
+  Since we removed the `archive/zip` import from the main file, we need to add the zip writing logic. Create a small helper or inline it. Add this to the same file or a new file `backend/internal/service/zipwriter.go`:
+
+```go
+package service
+
+import (
+	"archive/zip"
+	"bytes"
+	"io"
+)
+
+type ZipWriter struct {
+	buf *bytes.Buffer
+	w   *zip.Writer
+}
+
+func NewZipWriter(buf *bytes.Buffer) *ZipWriter {
+	return &ZipWriter{
+		buf: buf,
+		w:   zip.NewWriter(buf),
+	}
+}
+
+func (zw *ZipWriter) AddFile(name string, data []byte) error {
+	f, err := zw.w.Create(name)
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(f, bytes.NewReader(data))
+	return err
+}
+
+func (zw *ZipWriter) Close() error {
+	return zw.w.Close()
+}
+```
+
+- [ ] **Step 3: Build and verify**
+
+  Run: `cd backend && go build ./...`
+  Expected: no compilation errors
+
+- [ ] **Step 4: Commit**
+
+  Run: `git add backend/internal/service/docx_service.go backend/internal/service/zipwriter.go && git commit -m "feat: rewrite docx parsing with unioffice, extract keyword subtree"`
+
+---
+
+### Task 3: Update tests
+
+**Files:**
+- Modify: `backend/internal/service/docx_service_test.go`
+
+**Interfaces:**
+- Consumes: `DocxService` from `internal/service`
+- Tests: `ParseDocument`, `GenerateDocument`, `filterKeywordOutline`
+
+- [ ] **Step 1: Write tests for the new implementation**
+
+  Read the current test file first, then rewrite to match new API. The test file should test:
+
+  1. `ParseDocument` with empty data — expect error
+  2. `ParseDocument` with invalid data — expect error
+  3. `ParseDocument` with a valid DOCX containing "投标文件" heading — expect filtered outline
+  4. `filterKeywordOutline` — direct unit test
+
+  Note: For DOCX test fixtures, create a minimal valid DOCX using a helper function or use `testdata/` directory.
+
+- [ ] **Step 2: Run tests**
+
+  Run: `cd backend && go test ./internal/service/ -v -count=1`
+  Expected: all tests pass
+
+- [ ] **Step 3: Commit**
+
+  Run: `git add backend/internal/service/docx_service_test.go && git commit -m "test: update tests for unioffice-based docx parsing"`
+
+---
+
+### Task 4: Verify full stack integration
+
+**Files:**
+- Check: `backend/internal/handler/handler.go`
+
+**Interfaces:**
+- Consumes: `DocxService` from `internal/service`
+- Verification: Upload endpoint works end-to-end
+
+- [ ] **Step 1: Verify handler uses new DocxService correctly**
+
+  Check `handler.go` line 33: `docxService: service.NewDocxService()` — should still work since constructor signature unchanged.
+
+- [ ] **Step 2: Build entire project**
+
+  Run: `cd backend && go build ./...`
+  Expected: no errors
+
+- [ ] **Step 3: Start backend and test with a real .docx file**
+
+  Run: `cd backend && go run ./cmd/server/`
+  Expected: server starts on port 8080
+
+  Then test with curl:
+  ```bash
+  curl -X POST http://localhost:8080/api/upload -F "file=@/path/to/test.docx"
+  ```
+  Expected: returns JSON with outline containing only "投标文件" subtree
+
+- [ ] **Step 4: Commit**
+
+  Run: `git add -A && git commit -m "chore: verify full stack integration"`
+
+---
+
+### Task 5: Final cleanup
+
+- [ ] **Step 1: Remove unused imports and code**
+
+  Check no remaining references to `archive/zip` or `encoding/xml` in the service package.
+
+- [ ] **Step 2: Final build check**
+
+  Run: `cd backend && go build ./... && go vet ./...`
+  Expected: clean
+
+- [ ] **Step 3: Commit**
+
+  Run: `git add -A && git commit -m "chore: cleanup unused imports after unioffice migration"`

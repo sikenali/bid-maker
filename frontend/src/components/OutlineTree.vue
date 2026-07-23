@@ -20,6 +20,7 @@
         :open-menu-id="openMenuId"
         @select="selectSection"
         @toggle-menu="toggleMenu"
+        @promote-level="promoteLevel"
         @demote-level="demoteLevel"
         @add-child="addChild"
         @remove-section="removeSection"
@@ -135,9 +136,41 @@ const addTopSection = () => {
 }
 
 const demoteLevel = (sectionId: string) => {
-  const section = findSection(docStore.outline, sectionId)
+  const { parent, index } = findParentAndIndex(docStore.outline, sectionId)
+  if (!parent || index <= 0) return
+  const section = parent.children[index]
   if (!section || section.level >= 9) return
-  section.level++
+  const prevSibling = parent.children[index - 1]
+  if (!prevSibling) return
+  if (!prevSibling.children) prevSibling.children = []
+  parent.children.splice(index, 1)
+  section.level = prevSibling.level + 1
+  prevSibling.children.push(section)
+
+  saveOutline()
+  closeMenu()
+}
+
+const promoteLevel = (sectionId: string) => {
+  const { parent, index } = findParentAndIndex(docStore.outline, sectionId)
+  if (!parent) return
+  const section = parent.children[index]
+  if (!section) return
+
+  // 找到祖父节点
+  const grandParentResult = findParentAndIndex(docStore.outline, parent.id)
+  if (!grandParentResult.parent) {
+    // 已经是顶级章节，不能再升级
+    return
+  }
+
+  const grandParent = grandParentResult.parent
+  parent.children.splice(index, 1)
+  if (!grandParent.children) grandParent.children = []
+  section.level = grandParent.level + 1
+  // 插入到父级原来的位置（grandParentResult.index）
+  grandParent.children.splice(grandParentResult.index + 1, 0, section)
+
   saveOutline()
   closeMenu()
 }
@@ -175,6 +208,31 @@ function findSection(sections: Section[], id: string): Section | null {
       const found = findSection(s.children, id)
       if (found) return found
     }
+  }
+  return null
+}
+
+function findParentAndIndex(sections: Section[], id: string): { parent: Section | null; index: number } {
+  for (let i = 0; i < sections.length; i++) {
+    if (sections[i].id === id) {
+      return { parent: null, index: -1 }
+    }
+    if (sections[i].children && sections[i].children.length > 0) {
+      for (let j = 0; j < sections[i].children.length; j++) {
+        if (sections[i].children[j].id === id) {
+          return { parent: sections[i], index: j }
+        }
+      }
+      const found = findParentAndIndex(sections[i].children, id)
+      if (found.parent) return found
+    }
+  }
+  return { parent: null, index: -1 }
+}
+
+function findInSectionArray(sections: Section[], id: string): { found: boolean; index: number } | null {
+  for (let i = 0; i < sections.length; i++) {
+    if (sections[i].id === id) return { found: true, index: i }
   }
   return null
 }

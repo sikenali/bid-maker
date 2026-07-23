@@ -20,8 +20,10 @@
         </button>
         <div v-if="openMenuId === section.id" class="context-menu" @click.stop>
           <div class="menu-arrow" />
-          <button class="menu-item" :class="{ disabled: section.level >= 9 }" @click.stop="emit('demote-level', section.id)">降级</button>
-          <button class="menu-item" @click.stop="emit('add-child', section.id)">新增</button>
+          <button class="menu-item" :class="{ disabled: section.level <= 1 }" @click.stop="emit('promote-level', section.id)">升级</button>
+          <button class="menu-item" @click.stop="emit('demote-level', section.id)">降级</button>
+          <div class="menu-divider" />
+          <button class="menu-item" @click.stop="emit('add-child', section.id)">新增子章节</button>
           <div class="menu-divider" />
           <button class="menu-item menu-item-danger" @click.stop="emit('remove-section', section.id)">删除</button>
         </div>
@@ -62,6 +64,7 @@ defineProps<{
 const emit = defineEmits<{
   select: [id: string]
   'toggle-menu': [id: string]
+  'promote-level': [id: string]
   'demote-level': [id: string]
   'add-child': [id: string]
   'remove-section': [id: string]
