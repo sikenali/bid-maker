@@ -9,6 +9,7 @@ export interface Section {
   parent_id: string
   content: string
   children: Section[]
+  pmPos?: number
 }
 
 export const useDocumentStore = defineStore('document', () => {
@@ -20,7 +21,7 @@ export const useDocumentStore = defineStore('document', () => {
   const loadOutline = async (docId: string) => {
     const res = await getOutline(docId)
     const items = res.data.outline || []
-    outline.value = items
+    outline.value = items.map((s: any) => ({ ...s, pmPos: s.pmPos ?? undefined }))
     items.forEach((s: Section) => sections.value.set(s.id, s))
   }
 
@@ -57,5 +58,43 @@ export const useDocumentStore = defineStore('document', () => {
     docxBuffer.value = buffer
   }
 
-  return { outline, sections, activeSectionId, docxBuffer, loadOutline, loadSection, saveSectionContent, updateOutlineTree, getFullOutline, setDocxBuffer }
+  const syncHeadingInfo = (headings: Array<{text: string; level: number; pmPos: number}>) => {
+    const tree = outline.value
+    for (const h of headings) {
+      let target: Section | null = null
+      for (let i = 0; i < tree.length; i++) {
+        if (tree[i].title === h.text) {
+          target = tree[i]
+          break
+        }
+        if (tree[i].children?.length) {
+          for (const child of tree[i].children) {
+            if (child.title === h.text) {
+              target = child
+              break
+            }
+          }
+        }
+        if (target) break
+      }
+      if (target && target.pmPos === undefined) {
+        target.pmPos = h.pmPos
+      }
+    }
+  }
+
+  const getSectionPmPos = (sectionId: string): number | undefined => {
+    const tree = outline.value
+    for (let i = 0; i < tree.length; i++) {
+      if (tree[i].id === sectionId) return tree[i].pmPos
+      if (tree[i].children?.length) {
+        for (const child of tree[i].children) {
+          if (child.id === sectionId) return child.pmPos
+        }
+      }
+    }
+    return undefined
+  }
+
+  return { outline, sections, activeSectionId, docxBuffer, loadOutline, loadSection, saveSectionContent, updateOutlineTree, getFullOutline, setDocxBuffer, syncHeadingInfo, getSectionPmPos }
 })

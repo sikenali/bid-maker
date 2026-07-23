@@ -37,8 +37,9 @@
           :document-buffer="docStore.docxBuffer"
           :show-menu-bar="true"
           :show-toolbar="true"
-          :show-outline="false"
+          :show-outline="true"
           :read-only="false"
+          @ready="handleEditorReady"
         />
       </section>
       <aside class="right-panel">
@@ -49,7 +50,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDocumentStore } from '../stores/documentStore'
 import OutlineTree from '../components/OutlineTree.vue'
@@ -64,7 +65,7 @@ import { DocxEditor } from '@eigenpal/docx-editor-vue'
 const props = defineProps<{ id: string }>()
 const router = useRouter()
 const docStore = useDocumentStore()
-const editorRef = ref<any>(null)
+const editorRef = ref<InstanceType<typeof DocxEditor> | null>(null)
 
 const goSettings = () => router.push('/settings')
 const goHome = () => router.push('/')
@@ -77,7 +78,107 @@ onMounted(() => {
   }
 })
 
+onUnmounted(() => {})
+
+// Extract heading pmPos values by scanning the rendered document DOM.
+// @eigenpal renders spans with data-pm-start for each paragraph element,
+// allowing us to map section titles to ProseMirror positions accurately.
+let headingSyncStarted = false
+
+function handleEditorReady() {
+  if (headingSyncStarted) return
+  headingSyncStarted = true
+
+  let attempts = 0
+  const maxAttempts = 60
+  const interval = 100
+  const timer = setInterval(() => {
+    attempts++
+    try {
+      const viewport = document.querySelector('.docx-editor-vue__pages-viewport') as HTMLElement | null
+      if (!viewport) {
+        if (attempts >= maxAttempts) clearInterval(timer)
+        return
+      }
+
+      // Scan all paragraph-like elements for data-pm-start/pm-end spans
+      const headingTexts = docStore.getFullOutline().map((s: any) => s.title).filter(Boolean)
+      if (!headingTexts.length) {
+        if (attempts >= maxAttempts) clearInterval(timer)
+        return
+      }
+
+      // Find paragraph containers that have data-pm attributes
+      const allParas = viewport.querySelectorAll('[data-pm-start][data-pm-end]')
+      const pmHeadings: Array<{text: string; pmPos: number}> = []
+
+      allParas.forEach((el: Element) => {
+        const fullText = el.textContent?.trim()
+        if (!fullText) return
+        // Check if this element's text matches any heading title
+        const matchIdx = headingTexts.findIndex(
+          (title: string) => title && fullText.includes(title.trim())
+        )
+        if (matchIdx !== -1) {
+          pmHeadings.push({
+            text: fullText,
+            pmPos: Number(el.getAttribute('data-pm-start')) || 0,
+          })
+        }
+      })
+
+      if (pmHeadings.length > 0) {
+        // Match by title — use substring matching since Word formatting may add extra text
+        const tree = docStore.outline
+        for (const h of pmHeadings) {
+          for (let i = 0; i < tree.length; i++) {
+            const s = tree[i]
+            if (s.title && h.text.includes(s.title)) {
+              if (s.pmPos === undefined) s.pmPos = h.pmPos
+              continue
+            }
+            if (s.children?.length) {
+              for (const child of s.children) {
+                if (child.title && h.text.includes(child.title)) {
+                  if (child.pmPos === undefined) child.pmPos = h.pmPos
+                }
+              }
+            }
+          }
+        }
+        clearInterval(timer)
+      } else if (attempts >= maxAttempts) {
+        clearInterval(timer)
+      }
+    } catch {
+      /* ignore */
+    }
+  }, interval)
+}
+
 const handleSelectSection = (sectionId: string) => {
+  const tree = docStore.outline
+  let pmPos: number | undefined
+  for (let i = 0; i < tree.length; i++) {
+    if (tree[i].id === sectionId) { pmPos = tree[i].pmPos; break }
+    if (tree[i].children?.length) {
+      for (const child of tree[i].children) {
+        if (child.id === sectionId) { pmPos = child.pmPos; break }
+      }
+    }
+    if (pmPos !== undefined) break
+  }
+  if (pmPos !== undefined && editorRef.value?.scrollToPosition) {
+    editorRef.value.scrollToPosition(pmPos)
+  }
+  docStore.loadSection(props.id, sectionId)
+}
+
+const handleSelectSection = (sectionId: string) => {
+  const pmPos = docStore.getSectionPmPos(sectionId)
+  if (pmPos !== undefined && editorRef.value?.scrollToPosition) {
+    editorRef.value.scrollToPosition(pmPos)
+  }
   docStore.loadSection(props.id, sectionId)
 }
 </script>
