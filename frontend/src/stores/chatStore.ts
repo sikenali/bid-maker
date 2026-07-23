@@ -25,6 +25,20 @@ export const useChatStore = defineStore('chat', () => {
       if (selectedModelId) {
         apiKeyEntry = settingsStore.apiKeys.find(k => k.id === selectedModelId)
       }
+      
+      if (!apiKeyEntry && !selectedModelId) {
+        messages.pop()
+        messages.push({ role: 'ai', content: '请先在设置中配置 API Key' })
+        isSending.value = false
+        return
+      }
+      if (apiKeyEntry && !apiKeyEntry.key) {
+        messages.pop()
+        messages.push({ role: 'ai', content: '所选模型的 API Key 未填写，请在设置中补充' })
+        isSending.value = false
+        return
+      }
+      
       const modelName = apiKeyEntry ? (apiKeyEntry.modelName || apiKeyEntry.model) : modelId.value
       const res = await sendChat({
         document_id: docId || null,

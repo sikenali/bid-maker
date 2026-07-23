@@ -246,14 +246,18 @@ const selectedSkill = computed(() => activeSkillObj.value)
 
 const handleSend = () => {
   if (!inputText.value.trim()) return
-  let text = inputText.value
-  inputText.value = ''
-  const sectionId = chatStore.mode === 'context' ? docStore.activeSectionId : undefined
+  const rawText = inputText.value
+  let text = ''
 
   if (selectedSkill.value) {
     const skill = selectedSkill.value
-    text = skill.prompt + '\n\n' + text
+    text = skill.prompt + '\n\n' + '/' + skill.name + ' ' + rawText
+  } else {
+    text = rawText
   }
+
+  inputText.value = ''
+  const sectionId = chatStore.mode === 'context' ? docStore.activeSectionId : undefined
 
   chatStore.sendMessage(text, sectionId, docId, selectedModelId.value)
   scrollToBottom()
