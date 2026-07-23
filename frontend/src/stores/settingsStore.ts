@@ -67,6 +67,14 @@ export const useSettingsStore = defineStore('settings', () => {
 
   const selectedModelId = ref('gpt4o')
   const theme = ref<'light' | 'dark' | 'paper'>('light')
+  try {
+    const saved = localStorage.getItem('settings_theme')
+    if (saved === 'dark' || saved === 'paper') theme.value = saved
+  } catch {}
+  watch(
+    theme,
+    (t) => { try { localStorage.setItem('settings_theme', t) } catch {} },
+  )
   const exportFormat = ref<'word' | 'md'>('word')
 
   const selectedModel = computed(() => {
