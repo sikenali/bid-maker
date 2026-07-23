@@ -122,8 +122,8 @@
                   @click="selectTemplate(tpl.id)"
                 >
                   <div class="tpl-card-cover">
-                    <div class="tpl-card-icon">
-                      <RiFileTextLine size="24" color="#C23B22" />
+                    <div class="tpl-card-icon" style="background: #C23B22">
+                      <RiFileTextLine size="24" color="#fff" />
                     </div>
                     <span class="tpl-card-cat">{{ tpl.category }}</span>
                     <span class="tpl-card-label">投标模板</span>
@@ -160,8 +160,8 @@
                   @click="selectedSkillCard = idx"
                 >
                   <div class="tpl-card-cover">
-                    <div class="tpl-card-icon">
-                      <component :is="skill.iconComp" :size="'24'" color="#C23B22" />
+                    <div class="tpl-card-icon" :style="{ background: skill.iconBg }">
+                      <component :is="skill.iconComp" :size="'24'" color="#ffffff" />
                     </div>
                     <span class="tpl-card-cat">{{ skill.category }}</span>
                     <label class="toggle-switch-compact" @click.stop="handleToggleSkill(skill)">
@@ -1275,11 +1275,13 @@ const indicatorStyle = computed(() => {
 }
 
 .tpl-card-icon {
-  width: 24px;
-  height: 24px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
+  margin-bottom: 4px;
 }
 
 .tpl-card-cat {
@@ -2039,18 +2041,18 @@ const indicatorStyle = computed(() => {
 /* ── Skill Delete Button (top-right) ── */
 .tpl-card-skill-delete-btn {
   position: absolute;
-  top: 12px;
-  right: 12px;
-  width: 28px;
-  height: 28px;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
   border: none;
-  background: rgba(240, 232, 213, 0.9);
-  border-radius: 6px;
+  background: transparent;
+  border-radius: 4px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition: all 0.15s;
   z-index: 2;
   opacity: 0;
 }
@@ -2059,12 +2061,8 @@ const indicatorStyle = computed(() => {
   opacity: 1;
 }
 
-.tpl-card-skill-delete-btn:hover {
-  background: #C23B22;
-}
-
 .tpl-card-skill-delete-btn:hover svg {
-  color: #fff !important;
+  color: #C23B22 !important;
 }
 
 /* ── Skill Preview Modal ── */
