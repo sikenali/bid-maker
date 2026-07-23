@@ -48,5 +48,9 @@ export const useDocumentStore = defineStore('document', () => {
     outline.value = newOutline
   }
 
-  return { outline, sections, activeSectionId, loadOutline, loadSection, saveSectionContent, updateOutlineTree }
+  const getFullOutline = () => {
+    return outline.value
+  }
+
+  return { outline, sections, activeSectionId, loadOutline, loadSection, saveSectionContent, updateOutlineTree, getFullOutline }
 })

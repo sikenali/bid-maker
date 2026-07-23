@@ -21,7 +21,7 @@
           <RiFileListLine size="20" color="#8B7355" />
           <span>大纲提取</span>
         </button>
-        <button class="gen-btn bid-btn" @click="generateBid">
+        <button class="gen-btn bid-btn" @click="exportBid">
           <RiFilePaper2Line size="20" color="#8B7355" />
           <span>标书生成</span>
         </button>
@@ -169,7 +169,7 @@ function collectAllSections(sections: any[]): any[] {
   return result
 }
 
-const generateBid = async () => {
+const exportBid = async () => {
   try {
     const fmt = settingsStore.exportFormat
     const res = await exportDocument(docId.value, fmt)

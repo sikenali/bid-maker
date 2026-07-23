@@ -79,6 +79,12 @@ func (h *Handler) UploadDocument(c *gin.Context) {
 		return
 	}
 
+	ext := strings.ToLower(filepath.Ext(file.Filename))
+	if ext != ".docx" && ext != ".doc" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "仅支持 .docx 文件"})
+		return
+	}
+
 	src, err := file.Open()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
