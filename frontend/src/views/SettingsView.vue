@@ -339,7 +339,7 @@
                     <RiLoaderLine v-if="testingKey === key.id" size="14" color="#8B7355" class="spin" />
                     <RiCheckLine v-else-if="testSuccess[key.id]" size="14" color="#2D8A4E" />
                     <RiCloseLine v-else-if="testFailed[key.id]" size="14" color="#C43A31" />
-                    <span>{{ testSuccess[key.id] ? '可用' : testFailed[key.id] ? '失败' : '测试' }}</span>
+                    <span>{{ testSuccess[key.id] ? '连通性正常' : testFailed[key.id] ? '失败' : '测试' }}</span>
                   </button>
                   <button class="saved-key-edit" @click="handleEditKey(key)" title="编辑">
                     <RiEditLine size="14" color="#8B7355" />
@@ -690,10 +690,13 @@ const testingKey = ref('')
 const testSuccess = ref<Record<string, boolean>>({})
 const testFailed = ref<Record<string, boolean>>({})
 
+const testTimeouts = ref<Record<string, number>>({})
+
 const handleTestKey = async (key: any) => {
   testingKey.value = key.id
   testSuccess.value[key.id] = false
   testFailed.value[key.id] = false
+  if (testTimeouts.value[key.id]) clearTimeout(testTimeouts.value[key.id])
   try {
     const res = await testApiKey({
       provider: key.provider,
@@ -712,6 +715,10 @@ const handleTestKey = async (key: any) => {
     testingKey.value = ''
     testFailed.value[key.id] = true
   }
+  testTimeouts.value[key.id] = window.setTimeout(() => {
+    testSuccess.value[key.id] = false
+    testFailed.value[key.id] = false
+  }, 2000)
 }
 
 const handleEditKey = (key: any) => {
