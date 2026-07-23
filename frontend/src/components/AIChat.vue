@@ -474,7 +474,7 @@ const scrollToBottom = async () => {
   resize: none;
   line-height: 1.5;
   font-family: inherit;
-  min-height: 100px;
+  min-height: 140px;
 }
 
 .chat-input::placeholder {

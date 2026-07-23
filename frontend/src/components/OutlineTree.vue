@@ -145,6 +145,7 @@ const demoteLevel = (sectionId: string) => {
 const addChild = (parentId: string) => {
   const parent = findSection(docStore.outline, parentId)
   if (!parent) return
+  if (!parent.children) parent.children = []
   const newSection: Section = {
     id: Date.now().toString(),
     title: '新子章节',
