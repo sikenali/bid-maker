@@ -122,8 +122,8 @@
                   @click="selectTemplate(tpl.id)"
                 >
                   <div class="tpl-card-cover">
-                    <div class="tpl-card-icon" style="background: #C23B22">
-                      <RiFileTextLine size="24" color="#fff" />
+                    <div class="tpl-card-icon">
+                      <RiFileTextLine size="24" color="#C23B22" />
                     </div>
                     <span class="tpl-card-cat">{{ tpl.category }}</span>
                     <span class="tpl-card-label">投标模板</span>
@@ -160,8 +160,8 @@
                   @click="selectedSkillCard = idx"
                 >
                   <div class="tpl-card-cover">
-                    <div class="tpl-card-icon" :style="{ background: skill.iconBg }">
-                      <component :is="skill.iconComp" :size="'24'" color="#ffffff" />
+                    <div class="tpl-card-icon">
+                      <component :is="skill.iconComp" :size="'24'" color="#C23B22" />
                     </div>
                     <span class="tpl-card-cat">{{ skill.category }}</span>
                     <label class="toggle-switch-compact" @click.stop="handleToggleSkill(skill)">
@@ -1275,13 +1275,11 @@ const indicatorStyle = computed(() => {
 }
 
 .tpl-card-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 4px;
 }
 
 .tpl-card-cat {
