@@ -171,7 +171,7 @@ const removeSection = (sectionId: string) => {
 function findSection(sections: Section[], id: string): Section | null {
   for (const s of sections) {
     if (s.id === id) return s
-    if (s.children.length > 0) {
+    if (s.children && s.children.length > 0) {
       const found = findSection(s.children, id)
       if (found) return found
     }
@@ -185,7 +185,7 @@ function removeFromTree(sections: Section[], id: string): boolean {
       sections.splice(i, 1)
       return true
     }
-    if (sections[i].children.length > 0) {
+    if (sections[i].children && sections[i].children.length > 0) {
       if (removeFromTree(sections[i].children, id)) return true
     }
   }
