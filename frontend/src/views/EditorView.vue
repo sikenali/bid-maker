@@ -37,13 +37,24 @@
         <OutlineTree @select="handleSelectSection" />
       </aside>
       <section class="center-panel">
+        <div v-if="!editorReady" class="editor-skeleton">
+          <div class="skeleton-toolbar" />
+          <div class="skeleton-content">
+            <div class="skeleton-line" style="width: 60%" />
+            <div class="skeleton-line" style="width: 80%" />
+            <div class="skeleton-line" style="width: 40%" />
+            <div class="skeleton-line" style="width: 70%" />
+            <div class="skeleton-line" style="width: 55%" />
+            <div class="skeleton-line" style="width: 90%" />
+          </div>
+        </div>
         <DocxEditor
           v-if="docStore.docxBuffer"
           ref="editorRef"
           :document-buffer="docStore.docxBuffer"
           :show-menu-bar="true"
           :show-toolbar="true"
-          :show-outline="true"
+          :show-outline="false"
           :read-only="false"
           @ready="handleEditorReady"
         />
@@ -352,5 +363,39 @@ const handleSelectSection = (sectionId: string) => {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+.editor-skeleton {
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.skeleton-toolbar {
+  height: 40px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 8px;
+}
+
+.skeleton-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.skeleton-line {
+  height: 16px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 </style>
