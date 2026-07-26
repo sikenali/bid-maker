@@ -19,19 +19,23 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useGenerateStore } from '../stores/generateStore'
+import type { Section } from '../api/client'
+import type { SectionState } from '../stores/generateStore'
+
+type FlatSection = Section & { _level?: number }
 
 const genStore = useGenerateStore()
 
 const flatSections = computed(() => {
-  const flat: any[] = []
-  const flatten = (secs: any[], level: number) => {
+  const flat: FlatSection[] = []
+  const flatten = (secs: Section[], level: number) => {
     for (const s of secs) { flat.push({ ...s, _level: level }); flatten(s.children, level + 1) }
   }
   flatten(genStore.outline, 0)
   return flat
 })
 
-function iconFor(state: string) {
+function iconFor(state: SectionState) {
   switch (state) {
     case 'done': return '✅'
     case 'generating': return '⏳'

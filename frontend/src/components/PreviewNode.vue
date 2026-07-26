@@ -10,7 +10,9 @@
 </template>
 <script setup lang="ts">
 import { RiFileLine } from '@remixicon/vue'
-defineProps<{ section: any; depth: number }>()
+import type { Section } from '../api/client'
+defineOptions({ name: 'PreviewNode' })
+defineProps<{ section: Section; depth: number }>()
 </script>
 <style scoped>
 .preview-node { margin: 4px 0; }
