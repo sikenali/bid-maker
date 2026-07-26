@@ -19,6 +19,7 @@ type Handler struct {
 	docxService  *service.DocxService
 	llmRegistry  *service.LLMRegistry
 	skillService *service.SkillService
+	generateSvc  *service.GenerateService
 }
 
 func New() *Handler {
@@ -37,6 +38,11 @@ func New() *Handler {
 
 func (h *Handler) WithLLMRegistry(reg *service.LLMRegistry) *Handler {
 	h.llmRegistry = reg
+	return h
+}
+
+func (h *Handler) WithGenerateService(svc *service.GenerateService) *Handler {
+	h.generateSvc = svc
 	return h
 }
 
@@ -70,6 +76,8 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 		api.POST("/chat", h.Chat)
 		api.GET("/local-skills", h.ScanLocalSkills)
 		api.GET("/skills/content", h.GetSkillContent)
+		api.POST("/generate-outline", h.GenerateOutline)
+		api.POST("/generate-section", h.GenerateSection)
 	}
 }
 
