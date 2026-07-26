@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/example/bid-maker-backend/internal/model"
 	"github.com/unidoc/unioffice/v2/document"
@@ -18,9 +19,12 @@ import (
 var (
 	reChapter    = regexp.MustCompile(`^第[一二三四五六七八九十]章`)
 	reSection    = regexp.MustCompile(`^第[一二三四五六七八九十]节`)
-	reNumbered   = regexp.MustCompile(`^\d+[、.]`)
+	reNumbered   = regexp.MustCompile(`^\d+[、.]\d+`)
 	reChineseNum = regexp.MustCompile(`^[一二三四五六七八九十]+[、]`)
+
 )
+
+const maxHeadingLen = 80
 
 type DocxService struct {
 	Keyword string
@@ -41,6 +45,15 @@ func paragraphText(para document.Paragraph) string {
 }
 
 func isHeadingUnioffice(para document.Paragraph) (bool, int) {
+	text := paragraphText(para)
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return false, 0
+	}
+	if utf8.RuneCountInString(text) > maxHeadingLen {
+		return false, 0
+	}
+
 	props := para.X().PPr
 	if props != nil && props.PStyle != nil {
 		styleVal := props.PStyle.ValAttr
@@ -92,11 +105,6 @@ func isHeadingUnioffice(para document.Paragraph) (bool, int) {
 	}
 
 	// Fallback: detect numbered headings by text content via regex
-	text := paragraphText(para)
-	text = strings.TrimSpace(text)
-	if text == "" {
-		return false, 0
-	}
 	if reChapter.MatchString(text) {
 		return true, 1
 	}
