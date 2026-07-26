@@ -44,11 +44,13 @@ export interface SkillInfo {
   description: string
   category: string
   prompt: string
+  type?: 'chat' | 'generate'
   enabled?: boolean
   path?: string
 }
 
 const builtinSkills: SkillInfo[] = [
+  { id: 'generate-bid', name: '生成标书', description: '根据需求自动生成标书大纲和内容', category: '智能写作', type: 'generate', prompt: '你是一名资深的投标文件撰写专家。根据用户提供的需求描述，生成一份完整的标书大纲。只输出 Markdown 格式的大纲，使用 # 表示章，## 表示节，### 表示小节。不要输出额外说明。' },
   { id: 'outline', name: '大纲生成', description: '根据招标文件自动生成标书大纲', category: '智能写作', prompt: '请根据以下内容生成一份完整的标书大纲，包含章节标题和层级结构：' },
   { id: 'expand', name: '内容扩写', description: '基于大纲要点自动扩写章节内容', category: '智能写作', prompt: '请扩写以下内容，使其更加详细和专业：' },
   { id: 'summarize', name: '摘要总结', description: '提取文档关键信息生成简洁摘要', category: '智能处理', prompt: '请对以下内容进行摘要总结，提取关键信息：' },

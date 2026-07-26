@@ -4,6 +4,16 @@ const api = axios.create({
   baseURL: '/api',
 })
 
+export interface Section {
+  id: string
+  title: string
+  level: number
+  parent_id: string
+  content: string
+  children: Section[]
+  pmPos?: number
+}
+
 export const uploadDocument = (file: File) => {
   const formData = new FormData()
   formData.append('file', file)
@@ -36,6 +46,67 @@ export const postTemplate = (name: string, file: File) => {
   return api.post('/templates', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   })
+}
+
+export async function generateOutline(data: {
+  provider: string
+  model: string
+  endpoint: string
+  apiKey: string
+  skill_prompt: string
+  message: string
+}): Promise<{ outline: Section[] }> {
+  const res = await api.post('/generate-outline', data)
+  return res.data
+}
+
+export async function generateSectionStream(
+  data: {
+    provider: string
+    model: string
+    endpoint: string
+    apiKey: string
+    section_id: string
+    section: Section
+    outline: Section[]
+    user_prompt: string
+  },
+  onChunk: (sectionId: string, chunk: string) => void,
+  onDone: (sectionId: string) => void,
+  onError: (sectionId: string, error: string) => void
+): Promise<void> {
+  const response = await fetch('/api/generate-section', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  if (!response.ok) {
+    throw new Error(`generate-section failed: ${response.statusText}`)
+  }
+  const reader = response.body!.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() || ''
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (!trimmed.startsWith('data: ')) continue
+      try {
+        const parsed = JSON.parse(trimmed.slice(6))
+        if (parsed.error) {
+          onError(parsed.section_id, parsed.error)
+        } else if (parsed.done) {
+          onDone(parsed.section_id)
+        } else if (parsed.chunk) {
+          onChunk(parsed.section_id, parsed.chunk)
+        }
+      } catch { /* skip malformed */ }
+    }
+  }
 }
 
 export default api
