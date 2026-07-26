@@ -15,6 +15,13 @@ import (
 	"github.com/unidoc/unioffice/v2/document"
 )
 
+var (
+	reChapter    = regexp.MustCompile(`^第[一二三四五六七八九十]章`)
+	reSection    = regexp.MustCompile(`^第[一二三四五六七八九十]节`)
+	reNumbered   = regexp.MustCompile(`^\d+[、.]`)
+	reChineseNum = regexp.MustCompile(`^[一二三四五六七八九十]+[、]`)
+)
+
 type DocxService struct {
 	Keyword string
 }
@@ -44,16 +51,22 @@ func isHeadingUnioffice(para document.Paragraph) (bool, int) {
 				fmt.Sprintf("heading%d", i), fmt.Sprintf("heading %d", i),
 				fmt.Sprintf("标题%d", i), fmt.Sprintf("标题 %d", i),
 			}
-			if i <= 4 {
-				patterns = append(patterns, fmt.Sprintf("第%s章", chineseNum(i)))
-			}
-			if i <= 2 {
-				patterns = append(patterns, fmt.Sprintf("第%s节", chineseNum(i)))
-			}
 			for _, p := range patterns {
 				if styleVal == p {
 					return true, i
 				}
+			}
+		}
+		// 第X章 always level 1
+		for i := 1; i <= 9; i++ {
+			if styleVal == fmt.Sprintf("第%s章", chineseNum(i)) {
+				return true, 1
+			}
+		}
+		// 第X节 always level 2
+		for i := 1; i <= 9; i++ {
+			if styleVal == fmt.Sprintf("第%s节", chineseNum(i)) {
+				return true, 2
 			}
 		}
 		// Chinese level patterns: 一级标题, 二级标题...
@@ -62,15 +75,11 @@ func isHeadingUnioffice(para document.Paragraph) (bool, int) {
 			if styleVal == levelStr+"级标题" {
 				return true, level
 			}
-			if level <= 4 {
-				if styleVal == "第"+levelStr+"章" {
-					return true, level
-				}
+			if styleVal == "第"+levelStr+"章" {
+				return true, 1
 			}
-			if level <= 2 {
-				if styleVal == "第"+levelStr+"节" {
-					return true, level
-				}
+			if styleVal == "第"+levelStr+"节" {
+				return true, 2
 			}
 		}
 		// Check outlineLvl attribute
@@ -88,17 +97,17 @@ func isHeadingUnioffice(para document.Paragraph) (bool, int) {
 	if text == "" {
 		return false, 0
 	}
-	if matched, _ := regexp.MatchString(`^第[一二三四五六七八九十]章`, text); matched {
+	if reChapter.MatchString(text) {
 		return true, 1
 	}
-	if matched, _ := regexp.MatchString(`^第[一二三四五六七八九十]节`, text); matched {
+	if reSection.MatchString(text) {
 		return true, 2
 	}
-	if matched, _ := regexp.MatchString(`^\d+[、\.]`, text); matched {
-		digits := strings.Count(text[:strings.IndexAny(text, "、.")], ".")
-		return true, digits + 1
+	if reNumbered.MatchString(text) {
+		parts := strings.FieldsFunc(text, func(r rune) bool { return r == '.' || r == '、' })
+		return true, len(parts)
 	}
-	if matched, _ := regexp.MatchString(`^[一二三四五六七八九十]+[、]`, text); matched {
+	if reChineseNum.MatchString(text) {
 		return true, 1
 	}
 
