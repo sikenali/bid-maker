@@ -59,6 +59,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDocumentStore } from '../stores/documentStore'
+import type { Section } from '../stores/documentStore'
 import OutlineTree from '../components/OutlineTree.vue'
 import AIChat from '../components/AIChat.vue'
 import {
@@ -73,6 +74,7 @@ const props = defineProps<{ id: string }>()
 const router = useRouter()
 const docStore = useDocumentStore()
 const editorRef = ref<InstanceType<typeof DocxEditor> | null>(null)
+const editorReady = ref(false)
 
 const goSettings = () => router.push('/settings')
 const goHome = () => router.push('/')
@@ -85,7 +87,15 @@ onMounted(() => {
   }
 })
 
-onUnmounted(() => {})
+onUnmounted(() => {
+  if (headingObserver) {
+    headingObserver.disconnect()
+    headingObserver = null
+  }
+  if (syncDebounceTimer) {
+    clearTimeout(syncDebounceTimer)
+  }
+})
 
 async function handleExportDocx() {
   if (!editorRef.value) {
@@ -109,84 +119,95 @@ async function handleExportDocx() {
   }
 }
 
-// Extract heading pmPos values by scanning the rendered document DOM.
-// @eigenpal renders spans with data-pm-start for each paragraph element,
-// allowing us to map section titles to ProseMirror positions accurately.
-let headingSyncStarted = false
+let editorViewport: HTMLElement | null = null
+let headingObserver: MutationObserver | null = null
+let syncDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
 function handleEditorReady() {
-  if (headingSyncStarted) return
-  headingSyncStarted = true
-
-  let attempts = 0
-  const maxAttempts = 60
-  const interval = 100
-  const timer = setInterval(() => {
-    attempts++
-    try {
-      const viewport = document.querySelector('.docx-editor-vue__pages-viewport') as HTMLElement | null
-      if (!viewport) {
-        if (attempts >= maxAttempts) clearInterval(timer)
-        return
-      }
-
-      // Scan all paragraph-like elements for data-pm-start/pm-end spans
-      const headingTexts = docStore.getFullOutline().map((s: any) => s.title).filter(Boolean)
-      if (!headingTexts.length) {
-        if (attempts >= maxAttempts) clearInterval(timer)
-        return
-      }
-
-      // Find paragraph containers that have data-pm attributes
-      const allParas = viewport.querySelectorAll('[data-pm-start][data-pm-end]')
-      const pmHeadings: Array<{text: string; pmPos: number}> = []
-
-      allParas.forEach((el: Element) => {
-        const fullText = el.textContent?.trim()
-        if (!fullText) return
-        // Check if this element's text matches any heading title
-        const matchIdx = headingTexts.findIndex(
-          (title: string) => title && fullText.includes(title.trim())
-        )
-        if (matchIdx !== -1) {
-          pmHeadings.push({
-            text: fullText,
-            pmPos: Number(el.getAttribute('data-pm-start')) || 0,
-          })
-        }
-      })
-
-      if (pmHeadings.length > 0) {
-        // Match by title — use substring matching since Word formatting may add extra text
-        const tree = docStore.outline
-        for (const h of pmHeadings) {
-          for (let i = 0; i < tree.length; i++) {
-            const s = tree[i]
-            if (s.title && h.text.includes(s.title)) {
-              if (s.pmPos === undefined) s.pmPos = h.pmPos
-              continue
-            }
-            if (s.children?.length) {
-              for (const child of s.children) {
-                if (child.title && h.text.includes(child.title)) {
-                  if (child.pmPos === undefined) child.pmPos = h.pmPos
-                }
-              }
-            }
-          }
-        }
-        clearInterval(timer)
-      } else if (attempts >= maxAttempts) {
-        clearInterval(timer)
-      }
-    } catch {
-      /* ignore */
+  editorReady.value = true
+  const findViewport = (attempt = 0) => {
+    editorViewport = document.querySelector('.docx-editor-vue__pages-viewport') as HTMLElement | null
+    if (editorViewport) {
+      scanAndSyncHeadings()
+      setupHeadingObserver()
+    } else if (attempt < 20) {
+      setTimeout(() => findViewport(attempt + 1), 200)
     }
-  }, interval)
+  }
+  findViewport()
+}
+
+function scanHeadings(): Array<{ text: string; pmPos: number }> {
+  if (!editorViewport) return []
+  const elements = editorViewport.querySelectorAll('[data-pm-start][data-pm-end]')
+  const results: Array<{ text: string; pmPos: number }> = []
+  elements.forEach((el) => {
+    const text = el.textContent?.trim()
+    if (!text) return
+    const pmPos = Number(el.getAttribute('data-pm-start')) || 0
+    if (pmPos) results.push({ text, pmPos })
+  })
+  return results
+}
+
+function scanAndSyncHeadings() {
+  const headings = scanHeadings()
+  if (headings.length > 0) {
+    docStore.syncHeadingFromEditor(headings)
+  }
+}
+
+function findPmPosForSection(sectionId: string): number | undefined {
+  const cached = docStore.headingPositions.get(sectionId)
+  if (cached && Date.now() - cached.timestamp < 3000) {
+    return cached.pmPos
+  }
+  const section = findSectionInTree(docStore.outline, sectionId)
+  if (!section || !section.title) return undefined
+  const headings = scanHeadings()
+  for (const h of headings) {
+    if (h.text === section.title || h.text.includes(section.title)) {
+      docStore.setHeadingPosition(sectionId, h.pmPos)
+      return h.pmPos
+    }
+  }
+  return undefined
+}
+
+function findSectionInTree(sections: Section[], id: string): Section | null {
+  for (const s of sections) {
+    if (s.id === id) return s
+    if (s.children) {
+      const found = findSectionInTree(s.children, id)
+      if (found) return found
+    }
+  }
+  return null
+}
+
+function setupHeadingObserver() {
+  if (!editorViewport || headingObserver) return
+  headingObserver = new MutationObserver(() => {
+    docStore.clearHeadingPositions()
+    if (syncDebounceTimer) clearTimeout(syncDebounceTimer)
+    syncDebounceTimer = setTimeout(() => {
+      const headings = scanHeadings()
+      if (headings.length > 0) {
+        headings.forEach(h => {
+          docStore.syncTitleFromEditor(h.pmPos, h.text)
+        })
+      }
+    }, 300)
+  })
+  headingObserver.observe(editorViewport, {
+    childList: true,
+    subtree: true,
+    characterData: true,
+  })
 }
 
 const handleSelectSection = (sectionId: string) => {
-  const pmPos = docStore.getSectionPmPos(sectionId)
+  const pmPos = findPmPosForSection(sectionId)
   if (pmPos !== undefined && editorRef.value?.scrollToPosition) {
     editorRef.value.scrollToPosition(pmPos)
   }
