@@ -54,6 +54,7 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 			doc.GET("/:id/section/:sectionId", h.GetSection)
 			doc.PUT("/:id/section/:sectionId", h.SaveSection)
 			doc.POST("/:id/export", h.ExportDocument)
+			doc.POST("/:id/reparse", h.ReparseDocument)
 		}
 		tpl := api.Group("/templates")
 		{
@@ -96,6 +97,11 @@ func (h *Handler) UploadDocument(c *gin.Context) {
 	if _, err := buf.ReadFrom(src); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to read file: %v", err)})
 		return
+	}
+
+	keyword := c.DefaultQuery("keyword", "")
+	if keyword != "" {
+		h.docxService.Keyword = keyword
 	}
 
 	doc, err := h.docxService.ParseDocument(buf.Bytes())
@@ -202,6 +208,22 @@ func (h *Handler) ExportDocument(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "export complete — frontend handles save()"})
+}
+
+func (h *Handler) ReparseDocument(c *gin.Context) {
+	id := c.Param("id")
+	doc, ok := service.GetDocument(id)
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{"error": "document not found"})
+		return
+	}
+	var req struct {
+		Keyword string `json:"keyword"`
+	}
+	c.ShouldBindJSON(&req)
+	h.docxService.Reparse(doc, req.Keyword)
+	service.UpdateDocument(doc)
+	c.JSON(http.StatusOK, gin.H{"outline": doc.Outline})
 }
 
 func (h *Handler) Chat(c *gin.Context) {
