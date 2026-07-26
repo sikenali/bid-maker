@@ -50,6 +50,9 @@ type GenerateService struct {
 }
 
 func NewGenerateService(llm *LLMRegistry) *GenerateService {
+	if llm == nil {
+		return &GenerateService{}
+	}
 	return &GenerateService{llm: llm}
 }
 
@@ -94,10 +97,17 @@ func ParseOutlineFromMD(md string) []model.Section {
 }
 
 func writeSSEChunk(w http.ResponseWriter, sectionID, chunk string) {
-	data, _ := json.Marshal(SectionChunk{
+	data, err := json.Marshal(SectionChunk{
 		SectionID: sectionID,
 		Chunk:     chunk,
 	})
+	if err != nil {
+		fmt.Fprintf(w, "data: {\"error\":\"marshal error: %v\"}\n\n", err)
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+		return
+	}
 	fmt.Fprintf(w, "data: %s\n\n", data)
 	if f, ok := w.(http.Flusher); ok {
 		f.Flush()
@@ -105,10 +115,17 @@ func writeSSEChunk(w http.ResponseWriter, sectionID, chunk string) {
 }
 
 func writeSSEError(w http.ResponseWriter, sectionID, errMsg string) {
-	data, _ := json.Marshal(SectionChunk{
+	data, err := json.Marshal(SectionChunk{
 		SectionID: sectionID,
 		Error:     errMsg,
 	})
+	if err != nil {
+		fmt.Fprintf(w, "data: {\"error\":\"marshal error: %v\"}\n\n", err)
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+		return
+	}
 	fmt.Fprintf(w, "data: %s\n\n", data)
 	if f, ok := w.(http.Flusher); ok {
 		f.Flush()
@@ -116,13 +133,44 @@ func writeSSEError(w http.ResponseWriter, sectionID, errMsg string) {
 }
 
 func writeSSEDone(w http.ResponseWriter, sectionID string) {
-	data, _ := json.Marshal(SectionChunk{
+	data, err := json.Marshal(SectionChunk{
 		SectionID: sectionID,
 		Done:      true,
 	})
+	if err != nil {
+		fmt.Fprintf(w, "data: {\"error\":\"marshal error: %v\"}\n\n", err)
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+		return
+	}
 	fmt.Fprintf(w, "data: %s\n\n", data)
 	if f, ok := w.(http.Flusher); ok {
 		f.Flush()
+	}
+}
+
+func (s *GenerateService) readStream(ctx context.Context, stream *openai.ChatCompletionStream, w http.ResponseWriter, sectionID string) {
+	defer stream.Close()
+	for {
+		select {
+		case <-ctx.Done():
+			writeSSEError(w, sectionID, fmt.Sprintf("context cancelled: %v", ctx.Err()))
+			return
+		default:
+		}
+		resp, err := stream.Recv()
+		if err != nil {
+			if strings.Contains(err.Error(), "EOF") {
+				writeSSEDone(w, sectionID)
+				return
+			}
+			writeSSEError(w, sectionID, fmt.Sprintf("stream receive error: %v", err))
+			return
+		}
+		if len(resp.Choices) > 0 {
+			writeSSEChunk(w, sectionID, resp.Choices[0].Delta.Content)
+		}
 	}
 }
 
@@ -247,22 +295,8 @@ Write detailed, professional, and comprehensive content for this section. Format
 			writeSSEError(w, req.SectionID, fmt.Sprintf("stream creation failed: %v", err))
 			return
 		}
-		defer stream.Close()
-
-		for {
-			resp, err := stream.Recv()
-			if err != nil {
-				if strings.Contains(err.Error(), "EOF") {
-					writeSSEDone(w, req.SectionID)
-					return
-				}
-				writeSSEError(w, req.SectionID, fmt.Sprintf("stream receive error: %v", err))
-				return
-			}
-			if len(resp.Choices) > 0 {
-				writeSSEChunk(w, req.SectionID, resp.Choices[0].Delta.Content)
-			}
-		}
+		s.readStream(ctx, stream, w, req.SectionID)
+		return
 	}
 
 	client, err := s.llm.GetProvider(req.Provider)
@@ -283,20 +317,5 @@ Write detailed, professional, and comprehensive content for this section. Format
 		writeSSEError(w, req.SectionID, fmt.Sprintf("stream creation failed: %v", err))
 		return
 	}
-	defer stream.Close()
-
-	for {
-		resp, err := stream.Recv()
-		if err != nil {
-			if strings.Contains(err.Error(), "EOF") {
-				writeSSEDone(w, req.SectionID)
-				return
-			}
-			writeSSEError(w, req.SectionID, fmt.Sprintf("stream receive error: %v", err))
-			return
-		}
-		if len(resp.Choices) > 0 {
-			writeSSEChunk(w, req.SectionID, resp.Choices[0].Delta.Content)
-		}
-	}
+	s.readStream(ctx, stream, w, req.SectionID)
 }
