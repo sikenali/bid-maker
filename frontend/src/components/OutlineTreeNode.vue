@@ -42,19 +42,21 @@
       :depth="depth + 1"
       :active-section-id="activeSectionId"
       :open-menu-id="openMenuId"
-      :section-state="sectionState"
-      @select="emit('select', $event)"
-      @toggle-menu="emit('toggle-menu', $event)"
-      @promote-level="emit('promote-level', $event)"
-      @demote-level="emit('demote-level', $event)"
-      @add-child="emit('add-child', $event)"
-      @remove-section="emit('remove-section', $event)"
+      :section-state="genStore.getSectionState(child.id)"
+      @select="(id: string) => $emit('select', id)"
+      @toggle-menu="(id: string) => $emit('toggle-menu', id)"
+      @promote-level="(id: string) => $emit('promote-level', id)"
+      @demote-level="(id: string) => $emit('demote-level', id)"
+      @add-child="(id: string) => $emit('add-child', id)"
+      @remove-section="(id: string) => $emit('remove-section', id)"
     />
   </div>
 </template>
 
 <script setup lang="ts">
 import type { Section } from '../stores/documentStore'
+import type { SectionState } from '../stores/generateStore'
+import { useGenerateStore } from '../stores/generateStore'
 import {
   RiMore2Fill,
   RiFileTextFill,
@@ -62,12 +64,14 @@ import {
 } from '@remixicon/vue'
 defineOptions({ name: 'OutlineTreeNode' })
 
+const genStore = useGenerateStore()
+
 defineProps<{
   section: Section
   depth: number
   activeSectionId: string
   openMenuId: string | null
-  sectionState?: string
+  sectionState?: SectionState
 }>()
 
 const emit = defineEmits<{
