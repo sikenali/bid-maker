@@ -37,7 +37,7 @@
         <OutlineTree @select="handleSelectSection" />
       </aside>
       <section class="center-panel">
-        <div v-if="!editorReady" class="editor-skeleton">
+        <div v-if="!editorReady && !editorError" class="editor-skeleton">
           <div class="skeleton-toolbar" />
           <div class="skeleton-content">
             <div class="skeleton-line" style="width: 60%" />
@@ -47,6 +47,10 @@
             <div class="skeleton-line" style="width: 55%" />
             <div class="skeleton-line" style="width: 90%" />
           </div>
+        </div>
+        <div v-else-if="editorError" class="editor-error">
+          <p>编辑器加载失败</p>
+          <button @click="retryEditor">重试</button>
         </div>
         <DocxEditor
           v-if="docStore.docxBuffer"
@@ -70,7 +74,6 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDocumentStore } from '../stores/documentStore'
-import type { Section } from '../stores/documentStore'
 import OutlineTree from '../components/OutlineTree.vue'
 import AIChat from '../components/AIChat.vue'
 import {
@@ -86,13 +89,14 @@ const router = useRouter()
 const docStore = useDocumentStore()
 const editorRef = ref<InstanceType<typeof DocxEditor> | null>(null)
 const editorReady = ref(false)
+const editorError = ref(false)
 
 const goSettings = () => router.push('/settings')
 const goHome = () => router.push('/')
 
-onMounted(() => {
+onMounted(async () => {
   try {
-    docStore.loadOutline(props.id)
+    await docStore.loadOutline(props.id)
   } catch (err) {
     console.error('Failed to load outline:', err)
   }
@@ -169,31 +173,13 @@ function scanAndSyncHeadings() {
 }
 
 function findPmPosForSection(sectionId: string): number | undefined {
-  const cached = docStore.headingPositions.get(sectionId)
-  if (cached && Date.now() - cached.timestamp < 3000) {
-    return cached.pmPos
-  }
-  const section = findSectionInTree(docStore.outline, sectionId)
-  if (!section || !section.title) return undefined
-  const headings = scanHeadings()
-  for (const h of headings) {
-    if (h.text === section.title || h.text.includes(section.title)) {
-      docStore.setHeadingPosition(sectionId, h.pmPos)
-      return h.pmPos
-    }
-  }
-  return undefined
+  return docStore.getSectionPmPos(sectionId)
 }
 
-function findSectionInTree(sections: Section[], id: string): Section | null {
-  for (const s of sections) {
-    if (s.id === id) return s
-    if (s.children) {
-      const found = findSectionInTree(s.children, id)
-      if (found) return found
-    }
-  }
-  return null
+function retryEditor() {
+  editorError.value = false
+  editorReady.value = false
+  docStore.loadOutline(props.id)
 }
 
 function setupHeadingObserver() {
@@ -392,6 +378,25 @@ const handleSelectSection = (sectionId: string) => {
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
   border-radius: 4px;
+}
+
+.editor-error {
+  padding: 60px 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  color: #8B0000;
+}
+
+.editor-error button {
+  padding: 8px 24px;
+  border-radius: 8px;
+  border: 1px solid #C23B22;
+  background: #fff;
+  color: #C23B22;
+  cursor: pointer;
+  font-size: 14px;
 }
 
 @keyframes shimmer {

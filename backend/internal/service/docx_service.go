@@ -518,21 +518,25 @@ func (s *DocxService) writeSectionMarkdown(b *strings.Builder, sec *model.Sectio
 	}
 }
 
-func (s *DocxService) Reparse(doc *model.Document, keyword string) *model.Document {
+func (s *DocxService) Reparse(doc *model.Document, keyword string) {
 	if len(doc.RawBuffer) == 0 {
-		return doc
+		return
 	}
+	kwd := s.Keyword
 	if keyword != "" {
-		s.Keyword = keyword
+		kwd = keyword
 	}
+	// temporarily swap keyword for parsing
+	orig := s.Keyword
+	s.Keyword = kwd
 	parsed, err := s.ParseDocument(doc.RawBuffer)
+	s.Keyword = orig
 	if err != nil {
-		return doc
+		return
 	}
 	doc.Outline = parsed.Outline
 	doc.Title = parsed.Title
 	doc.UpdatedAt = time.Now().UTC()
-	return doc
 }
 
 func NowUTC() time.Time {

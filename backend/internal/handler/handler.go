@@ -220,7 +220,10 @@ func (h *Handler) ReparseDocument(c *gin.Context) {
 	var req struct {
 		Keyword string `json:"keyword"`
 	}
-	c.ShouldBindJSON(&req)
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
 	h.docxService.Reparse(doc, req.Keyword)
 	service.UpdateDocument(doc)
 	c.JSON(http.StatusOK, gin.H{"outline": doc.Outline})
