@@ -145,6 +145,7 @@ func (p *OpenAIProvider) CreateChatCompletionStream(ctx context.Context, message
 	req := openai.ChatCompletionRequest{
 		Model:    model,
 		Messages: openAIMessages,
+		Stream:   true,
 	}
 
 	client, err := p.getClient()

@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"regexp"
 	"strings"
@@ -18,24 +20,24 @@ var reHeading = regexp.MustCompile(`^(#{1,6})\s+(.+)$`)
 var DefaultSkillPrompt = `You are a professional bid document writer with deep expertise in creating comprehensive, well-structured, and persuasive bid proposals. Follow the user's requirements carefully and produce high-quality content.`
 
 type GenerateOutlineRequest struct {
-	Provider   string `json:"provider"`
-	Model      string `json:"model"`
-	Endpoint   string `json:"endpoint"`
-	APIKey     string `json:"apiKey"`
-	SkillID    string `json:"skill_id"`
-	UserPrompt string `json:"user_prompt"`
+	Provider    string `json:"provider"`
+	Model       string `json:"model"`
+	Endpoint    string `json:"endpoint"`
+	APIKey      string `json:"apiKey"`
+	SkillPrompt string `json:"skill_prompt"`
+	Message     string `json:"message"`
 }
 
 type GenerateSectionRequest struct {
-	Provider   string          `json:"provider"`
-	Model      string          `json:"model"`
-	Endpoint   string          `json:"endpoint"`
-	APIKey     string          `json:"apiKey"`
-	SkillID    string          `json:"skill_id"`
-	SectionID  string          `json:"section_id"`
-	Section    model.Section   `json:"section"`
-	Outline    []model.Section `json:"outline"`
-	UserPrompt string          `json:"user_prompt"`
+	Provider    string          `json:"provider"`
+	Model       string          `json:"model"`
+	Endpoint    string          `json:"endpoint"`
+	APIKey      string          `json:"apiKey"`
+	SkillPrompt string          `json:"skill_prompt"`
+	SectionID   string          `json:"section_id"`
+	Section     model.Section   `json:"section"`
+	Outline     []model.Section `json:"outline"`
+	Message     string          `json:"message"`
 }
 
 type SectionChunk struct {
@@ -58,8 +60,7 @@ func NewGenerateService(llm *LLMRegistry) *GenerateService {
 
 func ParseOutlineFromMD(md string) []model.Section {
 	lines := strings.Split(md, "\n")
-	var root []model.Section
-	var stack []*model.Section
+	var sections []model.Section
 
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
@@ -70,27 +71,53 @@ func ParseOutlineFromMD(md string) []model.Section {
 		if matches == nil {
 			continue
 		}
-		level := len(matches[1])
-		title := strings.TrimSpace(matches[2])
+		sections = append(sections, model.Section{
+			ID:    uuid.NewString(),
+			Title: strings.TrimSpace(matches[2]),
+			Level: len(matches[1]),
+		})
+	}
 
-		for len(stack) > 0 && stack[len(stack)-1].Level >= level {
+	if len(sections) == 0 {
+		return nil
+	}
+
+	parentIdx := make([]int, len(sections))
+	var stack []int
+	for i := range sections {
+		for len(stack) > 0 && sections[stack[len(stack)-1]].Level >= sections[i].Level {
 			stack = stack[:len(stack)-1]
 		}
-
-		sec := model.Section{
-			ID:    uuid.NewString(),
-			Title: title,
-			Level: level,
-		}
-
 		if len(stack) > 0 {
-			parent := stack[len(stack)-1]
-			sec.ParentID = parent.ID
-			parent.Children = append(parent.Children, sec)
-			stack = append(stack, &parent.Children[len(parent.Children)-1])
+			parentIdx[i] = stack[len(stack)-1]
 		} else {
-			root = append(root, sec)
-			stack = append(stack, &root[len(root)-1])
+			parentIdx[i] = -1
+		}
+		stack = append(stack, i)
+	}
+
+	childrenOf := make([][]int, len(sections))
+	for i, p := range parentIdx {
+		if p != -1 {
+			childrenOf[p] = append(childrenOf[p], i)
+		}
+	}
+
+	tree := make([]model.Section, len(sections))
+	copy(tree, sections)
+
+	for i := len(tree) - 1; i >= 0; i-- {
+		for _, childIdx := range childrenOf[i] {
+			child := tree[childIdx]
+			child.ParentID = tree[i].ID
+			tree[i].Children = append(tree[i].Children, child)
+		}
+	}
+
+	var root []model.Section
+	for i, p := range parentIdx {
+		if p == -1 {
+			root = append(root, tree[i])
 		}
 	}
 	return root
@@ -161,7 +188,7 @@ func (s *GenerateService) readStream(ctx context.Context, stream *openai.ChatCom
 		}
 		resp, err := stream.Recv()
 		if err != nil {
-			if strings.Contains(err.Error(), "EOF") {
+			if errors.Is(err, io.EOF) {
 				writeSSEDone(w, sectionID)
 				return
 			}
@@ -175,11 +202,11 @@ func (s *GenerateService) readStream(ctx context.Context, stream *openai.ChatCom
 }
 
 func (s *GenerateService) generateOutlineSystemPrompt(req GenerateOutlineRequest) string {
-	return DefaultSkillPrompt + `
+	return req.SkillPrompt + `
 
 Please generate a detailed outline for a bid document based on the user's requirements below. Return ONLY a markdown outline using headings (# for top-level, ## for subsections, etc.). Do not include any explanatory text outside the markdown.
 
-User requirements: ` + req.UserPrompt + `
+User requirements: ` + req.Message + `
 
 Generate a comprehensive markdown outline with at least 2-3 levels of hierarchy where appropriate.`
 }
@@ -189,7 +216,7 @@ func (s *GenerateService) GenerateOutline(ctx context.Context, req GenerateOutli
 
 	messages := []Message{
 		{Role: "system", Content: systemPrompt},
-		{Role: "user", Content: req.UserPrompt},
+		{Role: "user", Content: req.Message},
 	}
 
 	modelName := req.Model
@@ -252,7 +279,7 @@ func (s *GenerateService) GenerateSectionStream(ctx context.Context, req Generat
 
 	outlineStr := buildOutlineString(req.Outline, 0)
 
-	systemPrompt := DefaultSkillPrompt + fmt.Sprintf(`
+	systemPrompt := req.SkillPrompt + fmt.Sprintf(`
 
 You are now writing a specific section of a bid document.
 
@@ -266,7 +293,7 @@ Write detailed, professional, and comprehensive content for this section. Format
 
 	messages := []Message{
 		{Role: "system", Content: systemPrompt},
-		{Role: "user", Content: req.UserPrompt},
+		{Role: "user", Content: req.Message},
 	}
 
 	modelName := req.Model
@@ -290,6 +317,7 @@ Write detailed, professional, and comprehensive content for this section. Format
 		stream, err := client.CreateChatCompletionStream(ctx, openai.ChatCompletionRequest{
 			Model:    modelName,
 			Messages: openAIMessages,
+			Stream:   true,
 		})
 		if err != nil {
 			writeSSEError(w, req.SectionID, fmt.Sprintf("stream creation failed: %v", err))
