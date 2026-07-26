@@ -26,6 +26,8 @@ export const getTemplate = (id: string) => api.get(`/templates/${id}`)
 export const testApiKey = (data: { provider: string; model: string; key: string; endpoint?: string; format?: string }) => api.post('/config/test-key', data)
 
 export const getLocalSkills = () => api.get('/local-skills')
+export const reparseDocument = (docId: string, keyword?: string) =>
+  api.post(`/document/${docId}/reparse`, { keyword })
 
 export const postTemplate = (name: string, file: File) => {
   const formData = new FormData()
