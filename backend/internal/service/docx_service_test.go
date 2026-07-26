@@ -200,6 +200,28 @@ func TestExtractSectionsWithKeyword_ContentMatch(t *testing.T) {
 	}
 }
 
+func TestChineseNum(t *testing.T) {
+	tests := []struct {
+		name     string
+		num      int
+		expected string
+	}{
+		{"one", 1, "一"},
+		{"five", 5, "五"},
+		{"nine", 9, "九"},
+		{"zero", 0, ""},
+		{"ten", 10, ""},
+		{"negative", -1, ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := chineseNum(tc.num); got != tc.expected {
+				t.Errorf("chineseNum(%d) = %q, want %q", tc.num, got, tc.expected)
+			}
+		})
+	}
+}
+
 func TestExtractSectionsWithKeyword_NestedMatch(t *testing.T) {
 	svc := NewDocxService()
 	// Keyword found in nested child heading — extract its children (if any)
