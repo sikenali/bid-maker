@@ -53,7 +53,7 @@
           <button @click="retryEditor">重试</button>
         </div>
         <DocxEditor
-          v-if="docStore.docxBuffer"
+          v-if="docStore.docxBuffer && editorReady"
           ref="editorRef"
           :document-buffer="docStore.docxBuffer"
           :show-menu-bar="true"
