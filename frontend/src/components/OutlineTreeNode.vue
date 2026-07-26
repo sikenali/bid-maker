@@ -3,10 +3,16 @@
     <div
       :data-id="section.id"
       class="outline-node"
-      :class="{ active: section.id === activeSectionId }"
+      :class="{
+        active: section.id === activeSectionId,
+        'state-generating': sectionState === 'generating',
+        'state-done': sectionState === 'done',
+        'state-error': sectionState === 'error',
+      }"
       :style="{ paddingLeft: `${16 + depth * 30}px` }"
       @click="emit('select', section.id)"
     >
+      <span class="state-icon">{{ iconFor(sectionState) }}</span>
       <RiFileTextFill v-if="section.id === activeSectionId" size="20" color="#C23B22" />
       <RiFileTextLine v-else size="20" color="#8B7355" />
       <span class="node-title">{{ section.title }}</span>
@@ -36,8 +42,10 @@
       :depth="depth + 1"
       :active-section-id="activeSectionId"
       :open-menu-id="openMenuId"
+      :section-state="sectionState"
       @select="emit('select', $event)"
       @toggle-menu="emit('toggle-menu', $event)"
+      @promote-level="emit('promote-level', $event)"
       @demote-level="emit('demote-level', $event)"
       @add-child="emit('add-child', $event)"
       @remove-section="emit('remove-section', $event)"
@@ -59,6 +67,7 @@ defineProps<{
   depth: number
   activeSectionId: string
   openMenuId: string | null
+  sectionState?: string
 }>()
 
 const emit = defineEmits<{
@@ -69,6 +78,15 @@ const emit = defineEmits<{
   'add-child': [id: string]
   'remove-section': [id: string]
 }>()
+
+function iconFor(state: string | undefined) {
+  switch (state) {
+    case 'done': return '✅'
+    case 'generating': return '⏳'
+    case 'error': return '❌'
+    default: return ''
+  }
+}
 </script>
 
 <style scoped>
@@ -81,6 +99,25 @@ const emit = defineEmits<{
   transition: background 0.15s;
   position: relative;
   z-index: 1;
+}
+
+.outline-node.state-generating {
+  background: rgba(194, 59, 34, 0.06);
+}
+
+.outline-node.state-done {
+  opacity: 0.7;
+}
+
+.outline-node.state-error {
+  background: rgba(196, 58, 49, 0.06);
+}
+
+.state-icon {
+  width: 18px;
+  text-align: center;
+  font-size: 12px;
+  flex-shrink: 0;
 }
 
 .outline-node:hover {

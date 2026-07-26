@@ -90,6 +90,7 @@ import { useRoute } from 'vue-router'
 import { useChatStore } from '../stores/chatStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useDocumentStore } from '../stores/documentStore'
+import { useGenerateStore } from '../stores/generateStore'
 import ModelSelect from './ModelSelect.vue'
 import type { DocxEditor } from '@eigenpal/docx-editor-vue'
 import {
@@ -112,6 +113,7 @@ const emit = defineEmits<{
 const chatStore = useChatStore()
 const settingsStore = useSettingsStore()
 const docStore = useDocumentStore()
+const genStore = useGenerateStore()
 const route = useRoute()
 const resolvedDocId = props.docId || (route.params.id as string)
 const inputText = ref('')
@@ -154,7 +156,7 @@ const showSkillPopup = ref(false)
 const activeSkillIdx = ref(0)
 const skillQuery = ref('')
 // Track the currently selected skill object (replaces string-based selectedSkillId)
-const activeSkillObj = ref<{ id: string; name: string; description: string; prompt: string } | null>(null)
+const activeSkillObj = ref<{ id: string; name: string; description: string; prompt: string; type?: string } | null>(null)
 
 // Hidden skills set — shared with SettingsView
 const tryGetHiddenSkills = () => {
@@ -249,7 +251,7 @@ const scrollPopupItemIntoView = () => {
   })
 }
 
-const selectSkill = (skill: { id: string; name: string; description: string; prompt: string }) => {
+const selectSkill = (skill: { id: string; name: string; description: string; prompt: string; type?: string }) => {
   inputText.value = inputText.value.replace(/\/(\S*)$/, '')
   showSkillPopup.value = false
   skillQuery.value = ''
@@ -266,6 +268,33 @@ const selectedSkill = computed(() => activeSkillObj.value)
 const handleSend = () => {
   if (!inputText.value.trim()) return
   const rawText = inputText.value
+
+  // Generate skill flow
+  if (activeSkillObj.value?.type === 'generate') {
+    const modelEntry = settingsStore.apiKeys.find(k => k.id === selectedModelId.value)
+    if (!modelEntry) {
+      chatStore.messages.push({ role: 'ai', content: '请先在设置中配置 API 密钥' })
+      return
+    }
+    genStore.generateOutline(
+      resolvedDocId,
+      rawText,
+      activeSkillObj.value.prompt,
+      {
+        provider: modelEntry.provider,
+        model: modelEntry.model,
+        endpoint: modelEntry.endpoint || '',
+        format: modelEntry.format || 'openai',
+        apiKey: modelEntry.key,
+      }
+    )
+    inputText.value = ''
+    showSkillPopup.value = false
+    activeSkillObj.value = null
+    return
+  }
+
+  // Normal chat flow
   let text = ''
 
   if (selectedSkill.value) {

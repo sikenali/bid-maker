@@ -18,7 +18,8 @@
         :depth="0"
         :active-section-id="activeSectionId"
         :open-menu-id="openMenuId"
-        @select="selectSection"
+        :section-state="genStore.getSectionState(section.id)"
+        @select="handleSelectSection"
         @toggle-menu="toggleMenu"
         @promote-level="promoteLevel"
         @demote-level="demoteLevel"
@@ -33,6 +34,7 @@
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { useDocumentStore } from '../stores/documentStore'
+import { useGenerateStore } from '../stores/generateStore'
 import type { Section } from '../stores/documentStore'
 import OutlineTreeNode from './OutlineTreeNode.vue'
 import {
@@ -42,6 +44,7 @@ import {
 
 const route = useRoute()
 const docStore = useDocumentStore()
+const genStore = useGenerateStore()
 const docId = route.params.id as string
 const outline = computed(() => docStore.outline)
 const activeSectionId = computed(() => docStore.activeSectionId)
@@ -98,6 +101,16 @@ const handleMenuKeydown = (e: KeyboardEvent) => {
 const selectSection = (id: string) => {
   emit('select', id)
   nextTick(() => updateIndicator(id))
+}
+
+const handleSelectSection = (id: string) => {
+  emit('select', id)
+  if (genStore.phase === 'generating' && genStore.getSectionState(id) === 'pending') {
+    const section = findSectionById(genStore.outline, id)
+    if (section) {
+      genStore.generateSection(id, section, getSectionPath(genStore.outline, id), genStore.outline)
+    }
+  }
 }
 
 const updateIndicator = (id: string) => {
@@ -268,6 +281,32 @@ onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
   document.removeEventListener('keydown', handleMenuKeydown)
 })
+
+function findSectionById(sections: Section[], id: string): Section | null {
+  for (const s of sections) {
+    if (s.id === id) return s
+    const found = findSectionById(s.children, id)
+    if (found) return found
+  }
+  return null
+}
+
+function getSectionPath(sections: Section[], id: string): string[] {
+  const path: string[] = []
+  const search = (secs: Section[], target: string): boolean => {
+    for (const s of secs) {
+      if (s.id === target) { path.push(s.title); return true }
+      if (s.children.length > 0) {
+        path.push(s.title)
+        if (search(s.children, target)) return true
+        path.pop()
+      }
+    }
+    return false
+  }
+  search(sections, id)
+  return path
+}
 </script>
 
 <style scoped>

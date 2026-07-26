@@ -35,6 +35,7 @@
     <main class="editor-body">
       <aside class="left-panel">
         <OutlineTree @select="handleSelectSection" />
+        <ProgressTracker v-if="genStore.phase === 'generating' || genStore.phase === 'done'" />
       </aside>
       <section class="center-panel">
         <div v-if="!editorReady && !editorError" class="editor-skeleton">
@@ -67,6 +68,12 @@
         <AIChat :doc-id="props.id" :editor-ref="editorRef" :docx-buffer="docStore.docxBuffer" @export-docx="handleExportDocx" />
       </aside>
     </main>
+
+    <GenerateFlowDialog
+      v-if="genStore.phase === 'preview'"
+      @confirm="onConfirmGeneration"
+      @cancel="genStore.reset()"
+    />
   </div>
 </template>
 
@@ -76,6 +83,9 @@ import { useRouter } from 'vue-router'
 import { useDocumentStore } from '../stores/documentStore'
 import OutlineTree from '../components/OutlineTree.vue'
 import AIChat from '../components/AIChat.vue'
+import GenerateFlowDialog from '../components/GenerateFlowDialog.vue'
+import ProgressTracker from '../components/ProgressTracker.vue'
+import { useGenerateStore } from '../stores/generateStore'
 import {
   RiRadarFill,
   RiQuestionLine,
@@ -87,6 +97,7 @@ import { DocxEditor } from '@eigenpal/docx-editor-vue'
 const props = defineProps<{ id: string }>()
 const router = useRouter()
 const docStore = useDocumentStore()
+const genStore = useGenerateStore()
 const editorRef = ref<InstanceType<typeof DocxEditor> | null>(null)
 const editorReady = ref(false)
 const editorError = ref(false)
@@ -100,6 +111,8 @@ onMounted(async () => {
   } catch (err) {
     console.error('Failed to load outline:', err)
   }
+  window.addEventListener('gen-chunk', handleGenChunk as EventListener)
+  window.addEventListener('gen-done', handleGenDone as EventListener)
 })
 
 onUnmounted(() => {
@@ -110,6 +123,8 @@ onUnmounted(() => {
   if (syncDebounceTimer) {
     clearTimeout(syncDebounceTimer)
   }
+  window.removeEventListener('gen-chunk', handleGenChunk as EventListener)
+  window.removeEventListener('gen-done', handleGenDone as EventListener)
 })
 
 async function handleExportDocx() {
@@ -209,6 +224,21 @@ const handleSelectSection = (sectionId: string) => {
     editorRef.value.scrollToPosition(pmPos)
   }
   docStore.loadSection(props.id, sectionId)
+}
+
+function handleGenChunk(e: CustomEvent) {
+  const { chunk } = e.detail
+  if (editorRef.value?.insertContent) {
+    editorRef.value.insertContent(chunk)
+  }
+}
+
+function handleGenDone(_e: CustomEvent) {
+}
+
+function onConfirmGeneration() {
+  genStore.confirmGeneration()
+  docStore.updateOutlineTree(props.id, genStore.outline)
 }
 </script>
 

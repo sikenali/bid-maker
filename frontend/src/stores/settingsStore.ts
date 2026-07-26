@@ -9,6 +9,8 @@ export interface ApiKeyEntry {
   modelName: string
   key: string
   enabled: boolean
+  endpoint?: string
+  format?: string
 }
 
 export interface ModelInfo {
