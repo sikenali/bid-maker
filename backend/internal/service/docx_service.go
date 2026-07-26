@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -36,14 +37,18 @@ func isHeadingUnioffice(para document.Paragraph) (bool, int) {
 	props := para.X().PPr
 	if props != nil && props.PStyle != nil {
 		styleVal := props.PStyle.ValAttr
+		// Standard patterns (Heading1, 标题1, etc.)
 		for i := 1; i <= 9; i++ {
 			patterns := []string{
-				fmt.Sprintf("Heading%d", i),
-				fmt.Sprintf("Heading %d", i),
-				fmt.Sprintf("heading%d", i),
-				fmt.Sprintf("heading %d", i),
-				fmt.Sprintf("标题%d", i),
-				fmt.Sprintf("标题 %d", i),
+				fmt.Sprintf("Heading%d", i), fmt.Sprintf("Heading %d", i),
+				fmt.Sprintf("heading%d", i), fmt.Sprintf("heading %d", i),
+				fmt.Sprintf("标题%d", i), fmt.Sprintf("标题 %d", i),
+			}
+			if i <= 4 {
+				patterns = append(patterns, fmt.Sprintf("第%s章", chineseNum(i)))
+			}
+			if i <= 2 {
+				patterns = append(patterns, fmt.Sprintf("第%s节", chineseNum(i)))
 			}
 			for _, p := range patterns {
 				if styleVal == p {
@@ -51,8 +56,61 @@ func isHeadingUnioffice(para document.Paragraph) (bool, int) {
 				}
 			}
 		}
+		// Chinese level patterns: 一级标题, 二级标题...
+		for level := 1; level <= 9; level++ {
+			levelStr := chineseNum(level)
+			if styleVal == levelStr+"级标题" {
+				return true, level
+			}
+			if level <= 4 {
+				if styleVal == "第"+levelStr+"章" {
+					return true, level
+				}
+			}
+			if level <= 2 {
+				if styleVal == "第"+levelStr+"节" {
+					return true, level
+				}
+			}
+		}
+		// Check outlineLvl attribute
+		if props.OutlineLvl != nil {
+			val := props.OutlineLvl.ValAttr
+			if val >= 0 && val <= 8 {
+				return true, int(val + 1)
+			}
+		}
 	}
+
+	// Fallback: detect numbered headings by text content via regex
+	text := paragraphText(para)
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return false, 0
+	}
+	if matched, _ := regexp.MatchString(`^第[一二三四五六七八九十]章`, text); matched {
+		return true, 1
+	}
+	if matched, _ := regexp.MatchString(`^第[一二三四五六七八九十]节`, text); matched {
+		return true, 2
+	}
+	if matched, _ := regexp.MatchString(`^\d+[、\.]`, text); matched {
+		digits := strings.Count(text[:strings.IndexAny(text, "、.")], ".")
+		return true, digits + 1
+	}
+	if matched, _ := regexp.MatchString(`^[一二三四五六七八九十]+[、]`, text); matched {
+		return true, 1
+	}
+
 	return false, 0
+}
+
+func chineseNum(n int) string {
+	nums := []string{"零", "一", "二", "三", "四", "五", "六", "七", "八", "九"}
+	if n >= 1 && n <= 9 {
+		return nums[n]
+	}
+	return ""
 }
 
 func (s *DocxService) extractSectionsWithKeywordUnioffice(paras []document.Paragraph, keyword string) []model.Section {
