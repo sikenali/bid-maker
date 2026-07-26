@@ -17,6 +17,8 @@ export const useDocumentStore = defineStore('document', () => {
   const sections = ref<Map<string, Section>>(new Map())
   const activeSectionId = ref('')
   const docxBuffer = ref<ArrayBuffer | null>(null)
+  const headingPositions = ref<Map<string, { pmPos: number; timestamp: number }>>(new Map())
+  const CACHE_TTL = 3000
 
   const loadOutline = async (docId: string) => {
     const res = await getOutline(docId)
@@ -83,18 +85,60 @@ export const useDocumentStore = defineStore('document', () => {
     }
   }
 
-  const getSectionPmPos = (sectionId: string): number | undefined => {
-    const tree = outline.value
-    for (let i = 0; i < tree.length; i++) {
-      if (tree[i].id === sectionId) return tree[i].pmPos
-      if (tree[i].children?.length) {
-        for (const child of tree[i].children) {
-          if (child.id === sectionId) return child.pmPos
-        }
-      }
-    }
-    return undefined
+  const setHeadingPosition = (sectionId: string, pmPos: number) => {
+    headingPositions.value.set(sectionId, { pmPos, timestamp: Date.now() })
   }
 
-  return { outline, sections, activeSectionId, docxBuffer, loadOutline, loadSection, saveSectionContent, updateOutlineTree, getFullOutline, setDocxBuffer, syncHeadingInfo, getSectionPmPos }
+  const clearHeadingPositions = () => {
+    headingPositions.value.clear()
+  }
+
+  const syncHeadingFromEditor = (headings: Array<{ text: string; pmPos: number }>) => {
+    const search = (sections: Section[]): void => {
+      for (const s of sections) {
+        for (const h of headings) {
+          if (s.title === h.text || h.text.includes(s.title)) {
+            s.pmPos = h.pmPos
+            headingPositions.value.set(s.id, { pmPos: h.pmPos, timestamp: Date.now() })
+          }
+        }
+        if (s.children?.length) search(s.children)
+      }
+    }
+    search(outline.value)
+  }
+
+  const syncTitleFromEditor = (pmPos: number, newTitle: string) => {
+    const search = (sections: Section[]): boolean => {
+      for (const s of sections) {
+        if (s.pmPos === pmPos) {
+          s.title = newTitle
+          return true
+        }
+        if (s.children?.length && search(s.children)) return true
+      }
+      return false
+    }
+    search(outline.value)
+  }
+
+  const getSectionPmPos = (sectionId: string): number | undefined => {
+    const cached = headingPositions.value.get(sectionId)
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      return cached.pmPos
+    }
+    const search = (sections: Section[]): number | undefined => {
+      for (const s of sections) {
+        if (s.id === sectionId) return s.pmPos
+        if (s.children?.length) {
+          const found = search(s.children)
+          if (found !== undefined) return found
+        }
+      }
+      return undefined
+    }
+    return search(outline.value)
+  }
+
+  return { outline, sections, activeSectionId, docxBuffer, headingPositions, loadOutline, loadSection, saveSectionContent, updateOutlineTree, getFullOutline, setDocxBuffer, syncHeadingInfo, setHeadingPosition, clearHeadingPositions, syncHeadingFromEditor, syncTitleFromEditor, getSectionPmPos }
 })
