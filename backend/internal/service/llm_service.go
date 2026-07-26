@@ -24,6 +24,7 @@ type Message struct {
 // LLMClient is the interface that all LLM providers must implement.
 type LLMClient interface {
 	Chat(ctx context.Context, messages []Message, model string) (string, error)
+	CreateChatCompletionStream(ctx context.Context, messages []Message, model string) (*openai.ChatCompletionStream, error)
 	Close() error
 }
 
@@ -121,6 +122,42 @@ func (p *OpenAIProvider) Chat(ctx context.Context, messages []Message, model str
 	}
 
 	return resp.Choices[0].Message.Content, nil
+}
+
+// CreateChatCompletionStream creates a streaming chat completion.
+func (p *OpenAIProvider) CreateChatCompletionStream(ctx context.Context, messages []Message, model string) (*openai.ChatCompletionStream, error) {
+	if p.apiKey == "" {
+		return nil, errors.New("API key not configured")
+	}
+
+	if model == "" {
+		model = p.model
+	}
+
+	openAIMessages := make([]openai.ChatCompletionMessage, len(messages))
+	for i, m := range messages {
+		openAIMessages[i] = openai.ChatCompletionMessage{
+			Role:    m.Role,
+			Content: m.Content,
+		}
+	}
+
+	req := openai.ChatCompletionRequest{
+		Model:    model,
+		Messages: openAIMessages,
+	}
+
+	client, err := p.getClient()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create client: %w", err)
+	}
+
+	stream, err := client.CreateChatCompletionStream(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("chat completion stream failed: %w", err)
+	}
+
+	return stream, nil
 }
 
 // Close releases resources held by the provider.
