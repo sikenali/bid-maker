@@ -104,8 +104,15 @@ func isHeadingUnioffice(para document.Paragraph) (bool, int) {
 		return true, 2
 	}
 	if reNumbered.MatchString(text) {
-		parts := strings.FieldsFunc(text, func(r rune) bool { return r == '.' || r == '、' })
-		return true, len(parts)
+		endIdx := strings.IndexFunc(text, func(r rune) bool {
+			return r != '.' && r != '、' && r != ' ' && (r < '0' || r > '9')
+		})
+		if endIdx == -1 {
+			endIdx = len(text)
+		}
+		prefix := text[:endIdx]
+		delimCount := strings.Count(prefix, ".") + strings.Count(prefix, "、")
+		return true, delimCount + 1
 	}
 	if reChineseNum.MatchString(text) {
 		return true, 1
