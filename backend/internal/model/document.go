@@ -15,6 +15,7 @@ type Document struct {
 	ID        string    `json:"id"`
 	Title     string    `json:"title"`
 	Outline   []Section `json:"outline"`
+	Markdown  string    `json:"markdown"`
 	RawBuffer []byte    `json:"-"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
