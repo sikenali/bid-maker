@@ -137,7 +137,6 @@ func (h *Handler) UploadDocument(c *gin.Context) {
 		Title:     title,
 		Outline:   secs,
 		Markdown:  md,
-		RawBuffer: buf.Bytes(),
 		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now().UTC(),
 	}
