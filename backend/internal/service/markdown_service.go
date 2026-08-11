@@ -10,20 +10,13 @@ import (
 
 var mdHeadingRe = regexp.MustCompile(`^(#{1,6})\s+(.+)$`)
 
-type mdBlock struct {
-	level   int
-	title   string
-	content strings.Builder
-}
-
 // ParseSectionsWithContent 从 Markdown 构建章节树，并把每级标题下、
 // 属于其叶子章节的正文写入该叶子的 Content（含子标题间的正文）。
 func ParseSectionsWithContent(md string) ([]model.Section, error) {
 	lines := strings.Split(md, "\n")
 	var root []model.Section
 	type nodeLink struct {
-		sec   *model.Section
-		depth int
+		sec *model.Section
 	}
 	var stack []nodeLink
 
@@ -61,10 +54,10 @@ func ParseSectionsWithContent(md string) ([]model.Section, error) {
 				parent.Children = append(parent.Children, *sec)
 				// 重新取指针（Children append 可能 realloc）
 				ptr := &parent.Children[len(parent.Children)-1]
-				stack = append(stack, nodeLink{sec: ptr, depth: len(stack)})
+				stack = append(stack, nodeLink{sec: ptr})
 			} else {
 				root = append(root, *sec)
-				stack = append(stack, nodeLink{sec: &root[len(root)-1], depth: 0})
+				stack = append(stack, nodeLink{sec: &root[len(root)-1]})
 			}
 			continue
 		}

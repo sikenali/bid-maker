@@ -43,3 +43,40 @@ func TestParseSectionsWithContent_Empty(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, sections, 0)
 }
+
+func TestParseSectionsWithContent_LevelSkip(t *testing.T) {
+	md := `# 第一章
+### 1.1 跳过二级
+跳跃正文内容。`
+	sections, err := ParseSectionsWithContent(md)
+	assert.NoError(t, err)
+	assert.Len(t, sections, 1)
+	assert.Equal(t, "第一章", sections[0].Title)
+	assert.Len(t, sections[0].Children, 1)
+	child := sections[0].Children[0]
+	assert.Equal(t, "1.1 跳过二级", child.Title)
+	assert.Equal(t, 3, child.Level)
+	assert.Contains(t, child.Content, "跳跃正文内容。")
+}
+
+func TestParseSectionsWithContent_SiblingIsolation(t *testing.T) {
+	md := `# 第一章
+第一章专属内容。
+## 1.1 小节
+第一小节内容。
+# 第二章
+第二章专属内容。
+## 2.1 小节
+第二小节内容。`
+	sections, err := ParseSectionsWithContent(md)
+	assert.NoError(t, err)
+	assert.Len(t, sections, 2)
+	assert.Contains(t, sections[0].Content, "第一章专属内容。")
+	assert.NotContains(t, sections[0].Content, "第二章专属内容。")
+	assert.Contains(t, sections[0].Children[0].Content, "第一小节内容。")
+	assert.NotContains(t, sections[0].Children[0].Content, "第二小节内容。")
+	assert.Contains(t, sections[1].Content, "第二章专属内容。")
+	assert.NotContains(t, sections[1].Content, "第一章专属内容。")
+	assert.Contains(t, sections[1].Children[0].Content, "第二小节内容。")
+	assert.NotContains(t, sections[1].Children[0].Content, "第一小节内容。")
+}
