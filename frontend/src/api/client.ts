@@ -36,8 +36,13 @@ export const getTemplate = (id: string) => api.get(`/templates/${id}`)
 export const testApiKey = (data: { provider: string; model: string; key: string; endpoint?: string; format?: string }) => api.post('/config/test-key', data)
 
 export const getLocalSkills = () => api.get('/local-skills')
-export const reparseDocument = (docId: string, keyword?: string) =>
-  api.post(`/document/${docId}/reparse`, { keyword })
+export const getMarkdown = (docId: string) => api.get(`/document/${docId}/markdown`)
+export const saveMarkdown = (docId: string, markdown: string) =>
+  api.put(`/document/${docId}/markdown`, { markdown })
+export const exportDocx = (docId: string) =>
+  api.post(`/document/${docId}/export`, {}, {
+    responseType: 'blob',
+  })
 
 export const postTemplate = (name: string, file: File) => {
   const formData = new FormData()

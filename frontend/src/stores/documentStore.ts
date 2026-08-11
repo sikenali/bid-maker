@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { getOutline, getSection, saveSection, updateOutline } from '../api/client'
+import { getMarkdown, getOutline, getSection, saveMarkdown, saveSection, updateOutline } from '../api/client'
 
 export interface Section {
   id: string
@@ -18,6 +18,7 @@ export const useDocumentStore = defineStore('document', () => {
   const activeSectionId = ref('')
   const docxBuffer = ref<ArrayBuffer | null>(null)
   const headingPositions = ref<Map<string, { pmPos: number; timestamp: number }>>(new Map())
+  const markdown = ref('')
   const CACHE_TTL = 3000
 
   const loadOutline = async (docId: string) => {
@@ -45,6 +46,24 @@ export const useDocumentStore = defineStore('document', () => {
     }
     const section = sections.value.get(sectionId)
     if (section) section.content = content
+  }
+
+  const loadMarkdown = async (docId: string) => {
+    try {
+      const res = await getMarkdown(docId)
+      markdown.value = res.data.markdown || ''
+    } catch {
+      markdown.value = ''
+    }
+  }
+
+  const saveDocumentMarkdown = async (docId: string, md: string) => {
+    markdown.value = md
+    try {
+      await saveMarkdown(docId, md)
+    } catch {
+      // keep local, backend may be unavailable
+    }
   }
 
   const updateOutlineTree = async (docId: string, newOutline: Section[]) => {
@@ -140,5 +159,5 @@ export const useDocumentStore = defineStore('document', () => {
     return search(outline.value)
   }
 
-  return { outline, sections, activeSectionId, docxBuffer, headingPositions, loadOutline, loadSection, saveSectionContent, updateOutlineTree, getFullOutline, setDocxBuffer, syncHeadingInfo, setHeadingPosition, clearHeadingPositions, syncHeadingFromEditor, syncTitleFromEditor, getSectionPmPos }
+  return { outline, sections, activeSectionId, docxBuffer, headingPositions, markdown, loadOutline, loadSection, saveSectionContent, updateOutlineTree, getFullOutline, setDocxBuffer, syncHeadingInfo, setHeadingPosition, clearHeadingPositions, syncHeadingFromEditor, syncTitleFromEditor, getSectionPmPos, loadMarkdown, saveDocumentMarkdown }
 })
