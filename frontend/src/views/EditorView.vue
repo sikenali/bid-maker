@@ -38,30 +38,10 @@
         <ProgressTracker v-if="genStore.phase === 'generating' || genStore.phase === 'done'" />
       </aside>
       <section class="center-panel">
-        <div v-if="!editorReady && !editorError" class="editor-skeleton">
-          <div class="skeleton-toolbar" />
-          <div class="skeleton-content">
-            <div class="skeleton-line" style="width: 60%" />
-            <div class="skeleton-line" style="width: 80%" />
-            <div class="skeleton-line" style="width: 40%" />
-            <div class="skeleton-line" style="width: 70%" />
-            <div class="skeleton-line" style="width: 55%" />
-            <div class="skeleton-line" style="width: 90%" />
-          </div>
-        </div>
-        <div v-else-if="editorError" class="editor-error">
-          <p>编辑器加载失败</p>
-          <button @click="retryEditor">重试</button>
-        </div>
-        <DocxEditor
-          v-if="docStore.docxBuffer && editorReady"
-          ref="editorRef"
-          :document-buffer="docStore.docxBuffer"
-          :show-menu-bar="true"
-          :show-toolbar="true"
-          :show-outline="false"
-          :read-only="false"
-          @ready="handleEditorReady"
+        <MarkdownEditor
+          v-if="docStore.markdown !== undefined"
+          v-model="docStore.markdown"
+          class="center-md-editor"
         />
       </section>
       <aside class="right-panel">
@@ -78,36 +58,49 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDocumentStore } from '../stores/documentStore'
 import OutlineTree from '../components/OutlineTree.vue'
 import AIChat from '../components/AIChat.vue'
 import GenerateFlowDialog from '../components/GenerateFlowDialog.vue'
 import ProgressTracker from '../components/ProgressTracker.vue'
+import MarkdownEditor from '../components/MarkdownEditor.vue'
 import { useGenerateStore } from '../stores/generateStore'
+import { exportDocx } from '../api/client'
 import {
   RiRadarFill,
   RiQuestionLine,
   RiSettingsLine,
   RiDownloadLine,
 } from '@remixicon/vue'
-import { DocxEditor } from '@eigenpal/docx-editor-vue'
 
 const props = defineProps<{ id: string }>()
 const router = useRouter()
 const docStore = useDocumentStore()
 const genStore = useGenerateStore()
-const editorRef = ref<InstanceType<typeof DocxEditor> | null>(null)
-const editorReady = ref(false)
-const editorError = ref(false)
+
+const editorRef = ref<{
+  setContent: (content: string) => void
+  insertContent: (content: string) => void
+}>({
+  setContent: (content: string) => {
+    docStore.markdown = content
+  },
+  insertContent: (content: string) => {
+    docStore.markdown = (docStore.markdown || '') + content
+  },
+})
 
 const goSettings = () => router.push('/settings')
 const goHome = () => router.push('/')
 
+let mdSaveTimer: ReturnType<typeof setTimeout> | null = null
+
 onMounted(async () => {
   try {
     await docStore.loadOutline(props.id)
+    await docStore.loadMarkdown(props.id)
   } catch (err) {
     console.error('Failed to load outline:', err)
   }
@@ -116,25 +109,23 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  if (headingObserver) {
-    headingObserver.disconnect()
-    headingObserver = null
-  }
-  if (syncDebounceTimer) {
-    clearTimeout(syncDebounceTimer)
+  if (mdSaveTimer) {
+    clearTimeout(mdSaveTimer)
+    mdSaveTimer = null
   }
   window.removeEventListener('gen-chunk', handleGenChunk as EventListener)
   window.removeEventListener('gen-done', handleGenDone as EventListener)
 })
 
+watch(() => docStore.markdown, (val) => {
+  if (mdSaveTimer) clearTimeout(mdSaveTimer)
+  mdSaveTimer = setTimeout(() => docStore.saveDocumentMarkdown(props.id, val), 1000)
+})
+
 async function handleExportDocx() {
-  if (!editorRef.value) {
-    alert('编辑器尚未就绪')
-    return
-  }
   try {
-    const buffer = await editorRef.value.save()
-    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })
+    const res = await exportDocx(props.id)
+    const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -149,88 +140,13 @@ async function handleExportDocx() {
   }
 }
 
-let editorViewport: HTMLElement | null = null
-let headingObserver: MutationObserver | null = null
-let syncDebounceTimer: ReturnType<typeof setTimeout> | null = null
-
-function handleEditorReady() {
-  editorReady.value = true
-  const findViewport = (attempt = 0) => {
-    editorViewport = document.querySelector('.docx-editor-vue__pages-viewport') as HTMLElement | null
-    if (editorViewport) {
-      scanAndSyncHeadings()
-      setupHeadingObserver()
-    } else if (attempt < 20) {
-      setTimeout(() => findViewport(attempt + 1), 200)
-    }
-  }
-  findViewport()
-}
-
-function scanHeadings(): Array<{ text: string; pmPos: number }> {
-  if (!editorViewport) return []
-  const elements = editorViewport.querySelectorAll('[data-pm-start][data-pm-end]')
-  const results: Array<{ text: string; pmPos: number }> = []
-  elements.forEach((el) => {
-    const text = el.textContent?.trim()
-    if (!text) return
-    const pmPos = Number(el.getAttribute('data-pm-start')) || 0
-    if (pmPos) results.push({ text, pmPos })
-  })
-  return results
-}
-
-function scanAndSyncHeadings() {
-  const headings = scanHeadings()
-  if (headings.length > 0) {
-    docStore.syncHeadingFromEditor(headings)
-  }
-}
-
-function findPmPosForSection(sectionId: string): number | undefined {
-  return docStore.getSectionPmPos(sectionId)
-}
-
-function retryEditor() {
-  editorError.value = false
-  editorReady.value = false
-  docStore.loadOutline(props.id)
-}
-
-function setupHeadingObserver() {
-  if (!editorViewport || headingObserver) return
-  headingObserver = new MutationObserver(() => {
-    docStore.clearHeadingPositions()
-    if (syncDebounceTimer) clearTimeout(syncDebounceTimer)
-    syncDebounceTimer = setTimeout(() => {
-      const headings = scanHeadings()
-      if (headings.length > 0) {
-        headings.forEach(h => {
-          docStore.syncTitleFromEditor(h.pmPos, h.text)
-        })
-      }
-    }, 300)
-  })
-  headingObserver.observe(editorViewport, {
-    childList: true,
-    subtree: true,
-    characterData: true,
-  })
-}
-
 const handleSelectSection = (sectionId: string) => {
-  const pmPos = findPmPosForSection(sectionId)
-  if (pmPos !== undefined && editorRef.value?.scrollToPosition) {
-    editorRef.value.scrollToPosition(pmPos)
-  }
   docStore.loadSection(props.id, sectionId)
 }
 
 function handleGenChunk(e: CustomEvent) {
   const { chunk } = e.detail
-  if (editorRef.value?.insertContent) {
-    editorRef.value.insertContent(chunk)
-  }
+  editorRef.value.insertContent(chunk)
 }
 
 function handleGenDone(_e: CustomEvent) {
@@ -381,56 +297,7 @@ function onConfirmGeneration() {
   flex-direction: column;
 }
 
-.editor-skeleton {
-  padding: 40px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.skeleton-toolbar {
-  height: 40px;
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
-  border-radius: 8px;
-}
-
-.skeleton-content {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.skeleton-line {
-  height: 16px;
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
-  border-radius: 4px;
-}
-
-.editor-error {
-  padding: 60px 40px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-  color: #8B0000;
-}
-
-.editor-error button {
-  padding: 8px 24px;
-  border-radius: 8px;
-  border: 1px solid #C23B22;
-  background: #fff;
-  color: #C23B22;
-  cursor: pointer;
-  font-size: 14px;
-}
-
-@keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+.center-md-editor {
+  height: 100%;
 }
 </style>
