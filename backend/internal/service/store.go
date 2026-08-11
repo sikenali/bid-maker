@@ -3,6 +3,7 @@ package service
 import (
 	"github.com/example/bid-maker-backend/internal/model"
 	"sync"
+	"time"
 )
 
 var documentStore struct {
@@ -31,4 +32,8 @@ func UpdateDocument(doc *model.Document) {
 	documentStore.Lock()
 	defer documentStore.Unlock()
 	documentStore.documents[doc.ID] = doc
+}
+
+func NowUTC() time.Time {
+	return time.Now().UTC()
 }
