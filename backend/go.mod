@@ -21,7 +21,6 @@ require (
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/i18n v0.0.0-20150820051429-8b358169da46 // indirect
 	github.com/h2non/filetype v1.1.3 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
@@ -37,7 +36,6 @@ require (
 	github.com/quic-go/quic-go v0.59.0 // indirect
 	github.com/richardlehane/msoleps v1.0.6 // indirect
 	github.com/sirupsen/logrus v1.9.4 // indirect
-	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.3.1 // indirect
 	github.com/unidoc/emf v0.2.0 // indirect
@@ -60,6 +58,10 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-require github.com/unidoc/unioffice/v2 v2.12.0
+require (
+	github.com/google/uuid v1.6.0
+	github.com/stretchr/testify v1.11.1
+	github.com/unidoc/unioffice/v2 v2.12.0
+)
 
 replace github.com/unidoc/unioffice/v2 => github.com/sikenali/unioffice/v2 v2.0.0-20260701084101-423612299d83
