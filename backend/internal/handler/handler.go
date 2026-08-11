@@ -250,8 +250,11 @@ func (h *Handler) SaveMarkdown(c *gin.Context) {
 	}
 	doc.Markdown = req.Markdown
 	secs, err := service.ParseSectionsWithContent(req.Markdown)
-	if err == nil && len(secs) > 0 {
+	if err == nil {
 		doc.Outline = secs
+		if len(secs) > 0 {
+			doc.Title = secs[0].Title
+		}
 	}
 	doc.UpdatedAt = service.NowUTC()
 	service.UpdateDocument(doc)
