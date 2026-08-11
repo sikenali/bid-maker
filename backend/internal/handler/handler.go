@@ -16,10 +16,10 @@ import (
 )
 
 type Handler struct {
-	docxService  *service.DocxService
-	llmRegistry  *service.LLMRegistry
-	skillService *service.SkillService
-	generateSvc  *service.GenerateService
+	anyDocService *service.AnyDocService
+	llmRegistry   *service.LLMRegistry
+	skillService  *service.SkillService
+	generateSvc   *service.GenerateService
 }
 
 func New() *Handler {
@@ -31,8 +31,8 @@ func New() *Handler {
 		skillsDir = filepath.Join(os.Getenv("HOME"), skillsDir[2:])
 	}
 	return &Handler{
-		docxService:  service.NewDocxService(),
-		skillService: service.NewSkillService(skillsDir),
+		anyDocService: service.NewAnyDocService(),
+		skillService:  service.NewSkillService(skillsDir),
 	}
 }
 
@@ -59,8 +59,9 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 			doc.PUT("/:id/outline", h.UpdateOutline)
 			doc.GET("/:id/section/:sectionId", h.GetSection)
 			doc.PUT("/:id/section/:sectionId", h.SaveSection)
+			doc.GET("/:id/markdown", h.GetMarkdown)
+			doc.PUT("/:id/markdown", h.SaveMarkdown)
 			doc.POST("/:id/export", h.ExportDocument)
-			doc.POST("/:id/reparse", h.ReparseDocument)
 		}
 		tpl := api.Group("/templates")
 		{
@@ -87,13 +88,11 @@ func (h *Handler) UploadDocument(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
 	ext := strings.ToLower(filepath.Ext(file.Filename))
-	if ext != ".docx" && ext != ".doc" {
+	if ext != ".docx" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "仅支持 .docx 文件"})
 		return
 	}
-
 	src, err := file.Open()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -107,19 +106,43 @@ func (h *Handler) UploadDocument(c *gin.Context) {
 		return
 	}
 
-	keyword := c.DefaultQuery("keyword", "")
-	if keyword != "" {
-		h.docxService.Keyword = keyword
+	tmp, err := os.CreateTemp("", "anydoc-*.docx")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
+	_ = tmp.Chmod(0o600)
+	if _, err := tmp.Write(buf.Bytes()); err != nil {
+		tmp.Close()
+		os.Remove(tmp.Name())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	tmp.Close()
+	defer os.Remove(tmp.Name())
 
-	doc, err := h.docxService.ParseDocument(buf.Bytes())
+	md, err := h.anyDocService.ConvertFileToMarkdown(c.Request.Context(), tmp.Name())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	service.StoreDocument(doc)
+	secs, _ := service.ParseSectionsWithContent(md)
+	title := "Untitled Document"
+	if len(secs) > 0 {
+		title = secs[0].Title
+	}
 
+	doc := &model.Document{
+		ID:        fmt.Sprintf("doc-%d", time.Now().Unix()),
+		Title:     title,
+		Outline:   secs,
+		Markdown:  md,
+		RawBuffer: buf.Bytes(),
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}
+	service.StoreDocument(doc)
 	c.JSON(http.StatusOK, doc)
 }
 
@@ -202,23 +225,17 @@ func (h *Handler) SaveSection(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "section saved"})
 }
 
-func (h *Handler) ExportDocument(c *gin.Context) {
+func (h *Handler) GetMarkdown(c *gin.Context) {
 	id := c.Param("id")
 	doc, ok := service.GetDocument(id)
 	if !ok {
 		c.JSON(http.StatusNotFound, gin.H{"error": "document not found"})
 		return
 	}
-
-	// Frontend now handles document export via @eigenpal/docx-editor-vue save()
-	if doc != nil {
-		service.UpdateDocument(doc)
-	}
-
-	c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "export complete — frontend handles save()"})
+	c.JSON(http.StatusOK, gin.H{"markdown": doc.Markdown})
 }
 
-func (h *Handler) ReparseDocument(c *gin.Context) {
+func (h *Handler) SaveMarkdown(c *gin.Context) {
 	id := c.Param("id")
 	doc, ok := service.GetDocument(id)
 	if !ok {
@@ -226,15 +243,36 @@ func (h *Handler) ReparseDocument(c *gin.Context) {
 		return
 	}
 	var req struct {
-		Keyword string `json:"keyword"`
+		Markdown string `json:"markdown"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	h.docxService.Reparse(doc, req.Keyword)
+	doc.Markdown = req.Markdown
+	secs, err := service.ParseSectionsWithContent(req.Markdown)
+	if err == nil && len(secs) > 0 {
+		doc.Outline = secs
+	}
+	doc.UpdatedAt = service.NowUTC()
 	service.UpdateDocument(doc)
-	c.JSON(http.StatusOK, gin.H{"outline": doc.Outline})
+	c.JSON(http.StatusOK, gin.H{"message": "markdown saved"})
+}
+
+func (h *Handler) ExportDocument(c *gin.Context) {
+	id := c.Param("id")
+	doc, ok := service.GetDocument(id)
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{"error": "document not found"})
+		return
+	}
+	data, err := service.BuildDocxFromMarkdown(doc.Markdown)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("docx build failed: %v", err)})
+		return
+	}
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s.docx", id))
+	c.Data(http.StatusOK, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", data)
 }
 
 func (h *Handler) Chat(c *gin.Context) {
@@ -396,30 +434,42 @@ func (h *Handler) CreateTemplate(c *gin.Context) {
 	name := form.Value["name"][0]
 	fileHeader := form.File["file"][0]
 
-	ext := filepath.Ext(fileHeader.Filename)
-	if ext != ".docx" && ext != ".doc" {
+	if !strings.EqualFold(filepath.Ext(fileHeader.Filename), ".docx") {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Only .docx files are supported"})
 		return
 	}
-
 	src, err := fileHeader.Open()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to open file: %v", err)})
 		return
 	}
 	defer src.Close()
-
 	buf := new(bytes.Buffer)
 	if _, err := buf.ReadFrom(src); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to read file: %v", err)})
 		return
 	}
 
-	doc, err := h.docxService.ParseDocument(buf.Bytes())
+	tmp, err := os.CreateTemp("", "anydoc-tpl-*.docx")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	if _, err := tmp.Write(buf.Bytes()); err != nil {
+		tmp.Close()
+		os.Remove(tmp.Name())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	tmp.Close()
+	defer os.Remove(tmp.Name())
+
+	md, err := h.anyDocService.ConvertFileToMarkdown(c.Request.Context(), tmp.Name())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	secs, _ := service.ParseSectionsWithContent(md)
 
 	template := model.Template{
 		ID:          fmt.Sprintf("tpl_%d", time.Now().Unix()),
@@ -427,7 +477,7 @@ func (h *Handler) CreateTemplate(c *gin.Context) {
 		Description: "User uploaded template",
 		Category:    "custom",
 		Icon:        "RiFileTextLine",
-		Outline:     doc.Outline,
+		Outline:     secs,
 	}
 
 	service.GetTemplateStore().Save(template)
