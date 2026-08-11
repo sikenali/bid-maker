@@ -111,7 +111,6 @@ func (h *Handler) UploadDocument(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	_ = tmp.Chmod(0o600)
 	if _, err := tmp.Write(buf.Bytes()); err != nil {
 		tmp.Close()
 		os.Remove(tmp.Name())
