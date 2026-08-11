@@ -68,6 +68,8 @@ import ProgressTracker from '../components/ProgressTracker.vue'
 import MarkdownEditor from '../components/MarkdownEditor.vue'
 import { useGenerateStore } from '../stores/generateStore'
 import { exportDocx } from '../api/client'
+import type { Section } from '../stores/documentStore'
+import { serializeOutlineToMarkdown, setSectionMarkdownContent } from '../utils/markdown'
 import {
   RiRadarFill,
   RiQuestionLine,
@@ -83,6 +85,7 @@ const genStore = useGenerateStore()
 const editorRef = ref<{
   setContent: (content: string) => void
   insertContent: (content: string) => void
+  setContentControlContent: (sectionId: string, content: string) => void
 }>({
   setContent: (content: string) => {
     docStore.markdown = content
@@ -90,7 +93,17 @@ const editorRef = ref<{
   insertContent: (content: string) => {
     docStore.markdown = (docStore.markdown || '') + content
   },
+  setContentControlContent: (sectionId: string, content: string) => {
+    const section = findSectionById(docStore.outline, sectionId)
+    if (!section) {
+      docStore.markdown = content
+      return
+    }
+    docStore.markdown = setSectionMarkdownContent(docStore.markdown || '', section.title, section.level, content)
+  },
 })
+
+const sectionBuffers = new Map<string, string>()
 
 const goSettings = () => router.push('/settings')
 const goHome = () => router.push('/')
@@ -123,6 +136,11 @@ watch(() => docStore.markdown, (val) => {
 })
 
 async function handleExportDocx() {
+  if (mdSaveTimer) {
+    clearTimeout(mdSaveTimer)
+    mdSaveTimer = null
+  }
+  await docStore.saveDocumentMarkdown(props.id, docStore.markdown)
   try {
     const res = await exportDocx(props.id)
     const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })
@@ -145,16 +163,42 @@ const handleSelectSection = (sectionId: string) => {
 }
 
 function handleGenChunk(e: CustomEvent) {
-  const { chunk } = e.detail
-  editorRef.value.insertContent(chunk)
+  const { sectionId, chunk } = e.detail as { sectionId: string; chunk: string }
+  const section = findSectionById(genStore.outline, sectionId)
+  if (!section) return
+  const buffer = (sectionBuffers.get(sectionId) || '') + (chunk || '')
+  sectionBuffers.set(sectionId, buffer)
+  docStore.markdown = setSectionMarkdownContent(docStore.markdown || '', section.title, section.level, buffer)
 }
 
-function handleGenDone(_e: CustomEvent) {
+function handleGenDone(e: CustomEvent) {
+  const { sectionId } = e.detail as { sectionId: string }
+  const section = findSectionById(genStore.outline, sectionId)
+  const buffer = sectionBuffers.get(sectionId)
+  if (section) {
+    docStore.markdown = setSectionMarkdownContent(docStore.markdown || '', section.title, section.level, buffer || '')
+  }
+  sectionBuffers.delete(sectionId)
+  void docStore.saveDocumentMarkdown(props.id, docStore.markdown)
 }
 
-function onConfirmGeneration() {
+async function onConfirmGeneration() {
   genStore.confirmGeneration()
-  docStore.updateOutlineTree(props.id, genStore.outline)
+  const md = serializeOutlineToMarkdown(genStore.outline)
+  docStore.markdown = md
+  await docStore.saveDocumentMarkdown(props.id, md)
+  await docStore.updateOutlineTree(props.id, genStore.outline)
+}
+
+function findSectionById(sections: Section[], id: string): Section | null {
+  for (const s of sections) {
+    if (s.id === id) return s
+    if (s.children && s.children.length) {
+      const found = findSectionById(s.children, id)
+      if (found) return found
+    }
+  }
+  return null
 }
 </script>
 
