@@ -44,7 +44,7 @@
             <RiLoaderLine v-else :size="'36'" color="#5B8C5A" class="spin-icon" />
           </div>
           <p class="upload-hint">拖拽文件到此处，或点击选择文件</p>
-          <p class="upload-format">支持 DOCX、MD 格式，单个文件不超过 50MB</p>
+          <p class="upload-format">支持 DOCX 格式，单个文件不超过 50MB</p>
           <button class="btn-primary" @click.stop="triggerUpload">
             <RiAddFill size="18" color="#fff" />
             <span>选择文件</span>
@@ -52,7 +52,7 @@
           <input
             ref="fileInput"
             type="file"
-            accept=".docx,.md,.txt"
+            accept=".docx"
             hidden
             @change="onFileSelected"
           />
