@@ -1,22 +1,16 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed } from 'vue';
+import { useRouter } from 'vue-router';
 import { ElMessage } from '@/utils/toast';
-import { uploadFile } from '@/api/upload';
+import { createSession, runParseSkill } from '@/api/client';
 import StepStrip from '@/components/StepStrip.vue';
 import { UiTip } from '@/components/ui';
-import apiClient from '@/api/client';
+
+const router = useRouter();
 
 interface Step {
   key: number;
   label: string;
-}
-
-interface LlmSkill {
-  id: string;
-  skill_name: string;
-  skill_code: string;
-  biz_type: string;
-  enable_llm: number;
 }
 
 const props = withDefaults(defineProps<{
@@ -31,22 +25,13 @@ const props = withDefaults(defineProps<{
 });
 
 const emit = defineEmits<{
-  (e: 'success', jobId: string): void;
+  (e: 'success', sessionId: string): void;
   (e: 'replace'): void;
 }>();
 
 const uploading = ref(false);
 const isDragging = ref(false);
 const selectedFile = ref<File | null>(null);
-const selectedSkill = ref<string>('');
-const skills = ref<LlmSkill[]>([]);
-
-onMounted(async () => {
-  try {
-    const res = await apiClient.get<any[]>('/rules/llm-skills');
-    skills.value = (res.data || []).filter((s: any) => s.enable_llm === 1);
-  } catch {}
-});
 
 function getExt(file: File): string {
   const name = file.name.toLowerCase();
@@ -64,7 +49,7 @@ function formatSize(bytes: number): string {
 function validateFile(file: File): boolean {
   const ext = getExt(file);
   if (ext === '.doc') {
-    ElMessage.warning('不支持 .doc 格式，请转换成 Docx 格式后再上传～');
+    ElMessage.warning('不支持 .doc 格式，请转换成 Docx 格式后再上传');
     return false;
   }
   if (!['.docx', '.pdf', '.md', '.txt', '.xlsx', '.csv', '.html'].includes(ext)) {
@@ -106,20 +91,29 @@ function selectFile(file: File) {
   selectedFile.value = file;
 }
 
-function startUpload(file: File) {
+async function startUpload(file: File) {
   if (!selectedFile.value || uploading.value) return;
   uploading.value = true;
 
-  uploadFile(file, selectedSkill.value).then((uploadResult) => {
+  try {
+    // 1. Create session
+    const title = file.name.replace(/\.[^.]+$/, '');
+    const sessionRes = await createSession({ title });
+    const sessionId = sessionRes.data.session_id;
+
+    // 2. Upload and parse
+    await runParseSkill(sessionId, file);
+
+    // 3. Navigate to editor
     setTimeout(() => {
-      emit('success', uploadResult.id);
+      router.push(`/editor/${sessionId}`);
     }, 500);
-  }).catch((err: any) => {
-    const msg = err?.response?.data?.error || '上传失败，请重试';
+  } catch (err: any) {
+    const msg = err?.response?.data?.error || err?.message || '上传失败，请重试';
     ElMessage.error(msg);
     uploading.value = false;
     selectedFile.value = null;
-  });
+  }
 }
 
 function handleReplace() {
@@ -138,7 +132,7 @@ const btnLabel = computed(() => {
 function handleExtract() {
   if (uploading.value) return;
   if (!selectedFile.value) {
-    ElMessage.warning('请先上传文件后再点击制作～');
+    ElMessage.warning('请先上传文件后再点击制作');
     return;
   }
   startUpload(selectedFile.value);
@@ -155,10 +149,9 @@ function handleExtract() {
       @drop="handleDrop"
       @click="!uploading && triggerFileInput()"
     >
-      <!-- initial state -->
       <template v-if="!selectedFile">
         <div class="upload-icon-wrap">
-          <RiUploadCloud2Line class="icon" />
+          <RiUploadCloud2Line class="upload-icon" />
         </div>
         <p class="upload-hint">{{ title || '点击选择或拖拽招标文件到此处上传' }}</p>
         <div class="format-row">
@@ -171,11 +164,10 @@ function handleExtract() {
         </div>
       </template>
 
-      <!-- file selected: centered icon + name + size (kept as-is during upload, animation lives in StepStrip below) -->
       <template v-else>
         <UiTip text="替换文件" placement="left" class="replace-tip">
           <button v-if="!uploading" class="replace-icon" @click.stop="handleReplace">
-            <RiRefreshLine class="icon" />
+            <RiRefreshLine class="replace-icon-inner" />
           </button>
         </UiTip>
         <div class="file-centered">
@@ -217,20 +209,6 @@ function handleExtract() {
       />
     </div>
 
-    <!-- 技能选择器 -->
-    <div class="skill-selector" v-if="skills.length > 0 && !uploading">
-      <label class="skill-label">
-        <RiBrainLine class="icon" />
-        选择抽取技能：
-      </label>
-      <select v-model="selectedSkill" class="skill-select">
-        <option value="">默认技能（纯规则抽取）</option>
-        <option v-for="skill in skills" :key="skill.id" :value="skill.id">
-          {{ skill.skill_name }}
-        </option>
-      </select>
-    </div>
-
     <StepStrip
       :steps="steps"
       :loading="uploading"
@@ -249,7 +227,6 @@ function handleExtract() {
   width: 100%;
 }
 
-/* ── upload card ────────────────────────────────────── */
 .upload-card {
   width: 875px;
   height: 345px;
@@ -279,7 +256,6 @@ function handleExtract() {
   cursor: default;
 }
 
-/* initial state */
 .upload-icon-wrap {
   width: 80px;
   height: 80px;
@@ -289,9 +265,7 @@ function handleExtract() {
   align-items: center;
   justify-content: center;
 }
-.upload-icon-wrap .icon {
-  font-family: "remixicon", sans-serif;
-  font-style: normal;
+.upload-icon {
   font-size: 34px;
   color: var(--color-text-muted, #8A8578);
 }
@@ -328,7 +302,6 @@ function handleExtract() {
 .fmt-md  { background-color: #4A6FA5; font-size: 9px; }
 .fmt-tx  { background-color: #5A5750; font-size: 9px; }
 
-/* ── file selected state: centered icon + name + size ── */
 .replace-tip {
   position: absolute;
   top: 16px;
@@ -353,14 +326,12 @@ function handleExtract() {
   border-color: var(--color-primary, #C0392B);
   background-color: var(--color-primary-soft, #FBE9E7);
 }
-.replace-icon:hover .icon {
-  transform: rotate(120deg);
-}
-.replace-icon .icon {
-  font-family: "remixicon", sans-serif;
-  font-style: normal;
+.replace-icon-inner {
   font-size: 18px;
   transition: transform 0.3s ease;
+}
+.replace-icon:hover .replace-icon-inner {
+  transform: rotate(120deg);
 }
 .file-centered {
   display: flex;
@@ -403,52 +374,4 @@ function handleExtract() {
 }
 
 .file-input-hidden { display: none; }
-
-/* ── 技能选择器 ── */
-.skill-selector {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
-  padding: 12px 20px;
-  background: var(--color-bg-white, #fff);
-  border: 0.7px solid var(--color-border-soft, #EDE9E0);
-  border-radius: 10px;
-  width: 875px;
-}
-
-.skill-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 14px;
-  color: var(--color-text-secondary, #6E6A60);
-  font-family: "SourceHanSans-Regular", var(--font-family-cn);
-  white-space: nowrap;
-}
-
-.skill-label .icon {
-  font-family: "remixicon", sans-serif;
-  font-style: normal;
-  font-size: 16px;
-  color: var(--color-info, #4A72A8);
-}
-
-.skill-select {
-  flex: 1;
-  height: 38px;
-  padding: 0 12px;
-  border: 1px solid var(--color-border, #E5DFD3);
-  border-radius: 8px;
-  background: var(--color-bg-white, #fff);
-  font-size: 14px;
-  color: var(--color-text-body, #3A3A3A);
-  font-family: "SourceHanSans-Regular", var(--font-family-cn);
-  outline: none;
-  cursor: pointer;
-}
-
-.skill-select:focus {
-  border-color: var(--color-primary, #C0392B);
-}
 </style>
