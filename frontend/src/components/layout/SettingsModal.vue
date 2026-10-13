@@ -72,7 +72,6 @@ const menuItems = [
   { key: 'skill', label: '技能管理', icon: 'ri-git-branch-line', component: SkillSettingsView },
   { key: 'model', label: '模型管理', icon: 'ri-cpu-line', component: ApiKeySettingsView },
   { key: 'export', label: '导出管理', icon: 'ri-download-2-line', component: ExportSettingsView },
-  { key: 'profile', label: '个性设置', icon: 'ri-vip-crown-line', component: ProfileSettingsView },
   { key: 'about', label: '关于', icon: 'ri-information-line', component: AboutSettingsView },
 ];
 
