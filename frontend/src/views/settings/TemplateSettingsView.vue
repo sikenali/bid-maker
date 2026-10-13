@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage } from '@/utils/toast';
 import apiClient from '@/api/client';
 import { UiInput, UiSwitch, UiModal, UiTip } from '@/components/ui';
 
@@ -187,7 +187,7 @@ onMounted(() => {
           </div>
         </div>
         <button class="reset-button" @click="showResetDialog = true">
-          <span class="icon ri-restart-line"></span>
+          <RiRestartLine class="icon" />
           恢复默认
         </button>
       </div>
@@ -197,7 +197,7 @@ onMounted(() => {
     <div class="toolbar">
       <div class="toolbar-left">
         <button class="btn-add" @click="showAddDialog = true">
-          <span class="icon ri-add-line"></span>
+          <RiAddLine class="icon" />
           <span>新增模板</span>
         </button>
       </div>
@@ -213,12 +213,12 @@ onMounted(() => {
         <div class="view-toggle">
           <UiTip text="列表视图">
             <button class="view-btn" :class="{ active: viewMode === 'list' }" @click="viewMode = 'list'">
-              <span class="icon ri-layout-column-line"></span>
+              <RiLayoutColumnLine class="icon" />
             </button>
           </UiTip>
           <UiTip text="网格视图">
             <button class="view-btn" :class="{ active: viewMode === 'grid' }" @click="viewMode = 'grid'">
-              <span class="icon ri-layout-grid-line"></span>
+              <RiLayoutGridLine class="icon" />
             </button>
           </UiTip>
         </div>

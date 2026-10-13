@@ -6,7 +6,7 @@
           <div class="panel-header">
             <div class="header-left">
               <div class="header-icon">
-                <i class="ri-shield-check-line"></i>
+                <RiShieldCheckLine />
               </div>
               <div class="header-text">
                 <h2 class="panel-title">信用查询平台</h2>
@@ -14,7 +14,7 @@
               </div>
             </div>
             <button class="close-btn" @click="close">
-              <i class="ri-close-line"></i>
+              <RiCloseLine />
             </button>
           </div>
 
@@ -25,7 +25,7 @@
               class="site-card"
             >
               <div class="site-card-top">
-                <i class="ri-target-line site-logo"></i>
+                <RiTargetLine class="site-logo" />
                 <div class="site-info">
                   <h3 class="site-name">{{ site.name }}</h3>
                   <p class="site-desc">{{ site.desc }}</p>
@@ -33,7 +33,7 @@
               </div>
               <div class="site-card-bottom">
                 <a class="site-link" :href="site.url" target="_blank" :title="site.url">
-                  <i class="ri-external-link-line"></i>
+                  <RiExternalLinkLine />
                   <span>{{ site.url }}</span>
                 </a>
               </div>

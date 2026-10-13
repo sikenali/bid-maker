@@ -2,7 +2,7 @@
   <footer class="page-footer">
     <!-- 左侧：logo + 文字 -->
     <div class="footer-brand">
-      <span class="ri-target-line tool-logo"></span>
+      <RiTargetLine class="tool-logo" />
       <span class="footer-brand-text">回旋标工具系列</span>
     </div>
 
@@ -10,12 +10,12 @@
     <div class="footer-actions">
       <UiTip text="企业信用" placement="top">
         <div class="footer-icon-btn" @click="$emit('credit-query')">
-          <span class="footer-mark ri-shield-check-line"></span>
+          <RiShieldCheckLine class="footer-mark" />
         </div>
       </UiTip>
       <UiTip text="招标网站" placement="top">
         <div class="footer-icon-btn" @click="$emit('bidding-sites')">
-          <span class="footer-mark ri-links-line"></span>
+          <RiLinksLine class="footer-mark" />
         </div>
       </UiTip>
     </div>

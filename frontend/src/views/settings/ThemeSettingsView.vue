@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage } from '@/utils/toast';
 import { useRouter } from 'vue-router';
 import { useThemeStore } from '@/stores/theme';
 import { UiCheck } from '@/components/ui';
@@ -133,7 +133,7 @@ function resetAll() {
           </div>
         </div>
         <button class="reset-button" @click="resetAll">
-          <span class="icon ri-restart-line"></span>
+          <RiRestartLine class="icon" />
           恢复默认
         </button>
       </div>
@@ -174,7 +174,7 @@ function resetAll() {
           @click="selectAccent(accent.key)"
         >
           <div class="accent-circle" :style="{ backgroundColor: accent.color }">
-            <span v-if="selectedAccent === accent.key" class="icon ri-check-line"></span>
+            <RiCheckLine v-if="selectedAccent === accent.key" class="icon" />
           </div>
           <div class="accent-name" :class="{ current: selectedAccent === accent.key }">{{ accent.name }}</div>
         </div>

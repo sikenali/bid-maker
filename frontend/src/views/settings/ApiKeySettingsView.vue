@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage } from '@/utils/toast';
 import apiClient from '@/api/client';
 import { deleteApiKey, toggleApiKey, testApiKey } from '@/api/settings';
 import { UiSelect, UiInput, UiSelectCard, UiTip, UiModal, type UiSelectOption } from '@/components/ui';
@@ -238,7 +238,7 @@ onMounted(loadKeys);
           </div>
         </div>
         <button class="reset-button" @click="resetForm">
-          <span class="icon ri-restart-line"></span>
+          <RiRestartLine class="icon" />
           清空表单
         </button>
       </div>
@@ -302,7 +302,7 @@ onMounted(loadKeys);
             >
               <template #suffix>
                 <button class="form-key-toggle" @click="keyVisible = !keyVisible">
-                  <span class="icon" :class="keyVisible ? 'ri-eye-line' : 'ri-eye-off-line'"></span>
+                  <RiEyeLine v-if="keyVisible" class="icon" /><RiEyeOffLine v-else class="icon" />
                 </button>
               </template>
             </UiInput>
@@ -325,19 +325,19 @@ onMounted(loadKeys);
           <div class="saved-key-actions">
             <span class="saved-key-masked">{{ key.maskedKey }}</span>
             <button class="saved-key-test" @click="handleTest(key)" :disabled="testingKey === key.id">
-              <span v-if="testingKey === key.id" class="icon ri-loader-4-line spinning"></span>
-              <span v-else-if="testSuccess[key.id]" class="icon ri-check-line success"></span>
-              <span v-else-if="testFailed[key.id]" class="icon ri-close-circle-line failed"></span>
+              <RiLoader4Line v-if="testingKey === key.id" class="icon spinning" />
+              <RiCheckLine v-else-if="testSuccess[key.id]" class="icon success" />
+              <RiCloseCircleLine v-else-if="testFailed[key.id]" class="icon failed" />
               <span v-else>{{ testSuccess[key.id] ? '连通性正常' : testFailed[key.id] ? '失败' : '测试' }}</span>
             </button>
             <UiTip text="编辑">
               <button class="saved-key-edit" @click="startEdit(key)">
-                <span class="icon ri-edit-line"></span>
+                <RiEditLine class="icon" />
               </button>
             </UiTip>
             <UiTip text="删除">
               <button class="saved-key-delete" @click="openDelete(key.id)">
-                <span class="icon ri-delete-bin-line"></span>
+                <RiDeleteBinLine class="icon" />
               </button>
             </UiTip>
             <UiSwitch :model-value="key.enabled" size="sm" @click="handleToggle(key)" />

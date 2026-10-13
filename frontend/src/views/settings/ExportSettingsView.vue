@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage } from '@/utils/toast';
 import { getExportSettings, setExportSettings } from '@/api/settings';
 import { UiSwitch, UiSelectCard } from '@/components/ui';
 import { BRAND_NAME } from '@/constants/brand';
@@ -123,7 +123,7 @@ async function resetAll() {
           </div>
         </div>
         <button class="reset-button" @click="resetAll">
-          <span class="icon ri-restart-line"></span>
+          <RiRestartLine class="icon" />
           恢复默认
         </button>
       </div>

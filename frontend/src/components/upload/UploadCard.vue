@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage } from '@/utils/toast';
 import { uploadFile } from '@/api/upload';
 import StepStrip from '@/components/StepStrip.vue';
 import { UiTip } from '@/components/ui';
@@ -158,7 +158,7 @@ function handleExtract() {
       <!-- initial state -->
       <template v-if="!selectedFile">
         <div class="upload-icon-wrap">
-          <span class="ri-upload-cloud-2-line icon"></span>
+          <RiUploadCloud2Line class="icon" />
         </div>
         <p class="upload-hint">{{ title || '点击选择或拖拽招标文件到此处上传' }}</p>
         <div class="format-row">
@@ -175,7 +175,7 @@ function handleExtract() {
       <template v-else>
         <UiTip text="替换文件" placement="left" class="replace-tip">
           <button v-if="!uploading" class="replace-icon" @click.stop="handleReplace">
-            <span class="ri-refresh-line icon"></span>
+            <RiRefreshLine class="icon" />
           </button>
         </UiTip>
         <div class="file-centered">
@@ -220,7 +220,7 @@ function handleExtract() {
     <!-- 技能选择器 -->
     <div class="skill-selector" v-if="skills.length > 0 && !uploading">
       <label class="skill-label">
-        <span class="icon ri-brain-line"></span>
+        <RiBrainLine class="icon" />
         选择抽取技能：
       </label>
       <select v-model="selectedSkill" class="skill-select">

@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, computed } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage } from '@/utils/toast';
 import { UiSwitch, UiInput, UiModal, UiSelect } from '@/components/ui';
 import RuleDialog from '@/components/settings/RuleDialog.vue';
 import apiClient from '@/api/client';
 import { getLlmSkills, createLlmSkill, updateLlmSkill, deleteLlmSkill, getLlmPrompts } from '@/api/llm';
 import { getRules, addRule, updateRule, deleteRule, seedUniversalRules, type ExtractionRule } from '@/api/rules';
+import { riToCompName } from '@/utils/icon';
 
 // ── 主标签切换 ──────────────────────────────────────────────────
 const mainTab = ref<'llm' | 'prompts' | 'rules'>('llm');
@@ -178,7 +179,7 @@ async function handleSeedUniversal() {
     <!-- 标签导航 -->
     <div class="tab-nav">
       <button v-for="t in TABS" :key="t.key" class="tab-btn" :class="{active: mainTab===t.key}" @click="mainTab=t.key">
-        <span class="icon" :class="t.icon"></span><span>{{ t.label }}</span>
+        <component :is="riToCompName(t.icon)" class="icon" /><span>{{ t.label }}</span>
       </button>
     </div>
 
@@ -187,7 +188,7 @@ async function handleSeedUniversal() {
     <!-- ═══════════════════════════════════════════════════════════ -->
     <template v-if="mainTab==='llm'">
       <div class="toolbar">
-        <button class="btn-primary" @click="openLlmCreate"><span class="icon ri-add-line"></span>提取技能</button>
+        <button class="btn-primary" @click="openLlmCreate"><RiAddLine class="icon" />提取技能</button>
         <UiInput v-model="llmSearch" type="search" class="search-input" placeholder="搜索技能名称" clearable />
       </div>
       <div class="content-area">
@@ -205,10 +206,10 @@ async function handleSeedUniversal() {
             </div>
             <div class="card-prompt-preview"><pre>{{ s.prompt_template }}</pre></div>
             <div class="card-meta">
-              <span class="meta clickable" :class="{on:s.enable_llm===1}" @click="toggleLlmFeature(s)" :title="s.enable_llm===1?'点击关闭LLM增强':'点击开启LLM增强'"><i class="ri-brain-line"></i>LLM增强</span>
-              <span v-if="s.bind_prompt_template_id" class="meta"><i class="ri-file-text-line"></i>已绑定模板</span>
-              <span class="meta"><i class="ri-settings-3-line"></i>t={{s.temperature}}</span>
-              <span class="meta"><i class="ri-history-line"></i>v{{s.version}}</span>
+              <span class="meta clickable" :class="{on:s.enable_llm===1}" @click="toggleLlmFeature(s)" :title="s.enable_llm===1?'点击关闭LLM增强':'点击开启LLM增强'"><RiBrainLine />LLM增强</span>
+              <span v-if="s.bind_prompt_template_id" class="meta"><RiFileTextLine />已绑定模板</span>
+              <span class="meta"><RiSettings3Line />t={{s.temperature}}</span>
+              <span class="meta"><RiHistoryLine />v{{s.version}}</span>
             </div>
             <div class="card-actions">
               <button class="act-btn edit" @click="openLlmEdit(s)">编辑</button>
@@ -224,7 +225,7 @@ async function handleSeedUniversal() {
     <!-- ═══════════════════════════════════════════════════════════ -->
     <template v-else-if="mainTab==='prompts'">
       <div class="toolbar">
-        <button class="btn-primary" @click="openTplCreate"><span class="icon ri-add-line"></span>新建提示词</button>
+        <button class="btn-primary" @click="openTplCreate"><RiAddLine class="icon" />新建提示词</button>
         <UiInput v-model="tplSearch" type="search" class="search-input" placeholder="搜索模板名称" clearable />
       </div>
       <div class="content-area">
@@ -253,14 +254,14 @@ async function handleSeedUniversal() {
     <template v-else>
       <div class="rule-toolbar">
         <div class="rule-toolbar-left">
-          <button class="add-rule-button" @click="openAdd('regex')"><span class="icon ri-add-line"></span><span>新增规则</span></button>
-          <button class="seed-universal-button" @click="handleSeedUniversal"><span class="icon ri-global-line"></span><span>补全通用规则</span></button>
+          <button class="add-rule-button" @click="openAdd('regex')"><RiAddLine class="icon" /><span>新增规则</span></button>
+          <button class="seed-universal-button" @click="handleSeedUniversal"><RiGlobalLine class="icon" /><span>补全通用规则</span></button>
         </div>
         <div class="rule-toolbar-right">
           <UiInput v-model="rSearch" type="search" class="toolbar-search" placeholder="搜索规则字段或描述" clearable />
           <div class="group-filter">
             <button v-for="g in GROUP_META" :key="g.key" class="group-icon-btn" :class="{ active: rGroup === g.key }" @click="rGroup = rGroup === g.key ? '' : g.key" :title="g.label">
-              <span class="icon" :class="g.icon"></span>
+              <component :is="riToCompName(g.icon)" class="icon" />
             </button>
           </div>
         </div>

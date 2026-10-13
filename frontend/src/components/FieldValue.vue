@@ -13,7 +13,7 @@
         class="locate-btn"
         @click="handleLocate"
       >
-        <span class="icon ri-crosshair-2-line"></span>
+        <RiCrosshair2Line class="icon" />
         <span>定位</span>
       </button>
     </UiTip>

@@ -10,6 +10,7 @@
  * </UiModal>
  */
 import { watch, onMounted, onUnmounted } from 'vue';
+import { riToCompName } from '@/utils/icon';
 
 const props = withDefaults(defineProps<{
   modelValue?: boolean;
@@ -93,7 +94,7 @@ onUnmounted(() => { if (props.modelValue) lockScroll(false); });
           <div class="ui-modal-header">
             <div class="ui-modal-header-left">
               <div class="ui-modal-icon">
-                <i :class="icon"></i>
+                <component :is="riToCompName(icon)" />
               </div>
               <div class="ui-modal-header-text">
                 <h2 class="ui-modal-title">{{ title }}</h2>
@@ -103,7 +104,7 @@ onUnmounted(() => { if (props.modelValue) lockScroll(false); });
               </div>
             </div>
             <button v-if="showClose" class="ui-modal-close" @click="close" aria-label="关闭">
-              <i class="ri-close-line"></i>
+              <RiCloseLine />
             </button>
           </div>
 
@@ -123,7 +124,7 @@ onUnmounted(() => { if (props.modelValue) lockScroll(false); });
                   :disabled="confirmDisabled || confirmLoading"
                   @click="onConfirm"
                 >
-                  <span v-if="confirmLoading" class="icon ri-loader-4-line spinning"></span>
+                  <RiLoader4Line v-if="confirmLoading" class="icon spinning" />
                   {{ confirmText }}
                 </button>
               </span>

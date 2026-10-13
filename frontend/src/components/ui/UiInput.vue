@@ -10,6 +10,7 @@
  * <UiInput v-model="desc" multiline :rows="3" />
  */
 import { computed, useAttrs } from 'vue';
+import { riToCompName } from '@/utils/icon';
 
 const props = withDefaults(defineProps<{
   modelValue?: string | number;
@@ -73,7 +74,7 @@ function clear() {
     class="ui-input"
     :class="['is-' + size, { 'has-prefix': prefixIcon || type === 'search', 'has-clear': showClear, 'has-suffix': $slots.suffix, 'is-disabled': disabled }]"
   >
-    <span v-if="prefixIcon || type === 'search'" :class="['ui-input-prefix icon', prefixIcon || 'ri-search-line']"></span>
+    <component v-if="prefixIcon || type === 'search'" :is="riToCompName(prefixIcon || 'ri-search-line')" class="ui-input-prefix icon" />
     <textarea
       v-if="multiline"
       class="ui-input-el"
@@ -105,7 +106,7 @@ function clear() {
       @blur="emit('blur', $event)"
     />
     <button v-if="showClear" class="ui-input-clear" type="button" title="清空" @click.stop="clear">
-      <span class="icon ri-close-circle-fill"></span>
+      <RiCloseCircleFill class="icon" />
     </button>
     <span v-if="$slots.suffix" class="ui-input-suffix">
       <slot name="suffix" />

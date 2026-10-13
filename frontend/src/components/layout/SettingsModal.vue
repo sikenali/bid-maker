@@ -6,7 +6,7 @@
           <div class="panel-header">
             <div class="header-left">
               <div class="header-icon">
-                <i class="ri-settings-3-line"></i>
+                <RiSettings3Line />
               </div>
               <div class="header-text">
                 <h2 class="panel-title">设置中心</h2>
@@ -14,7 +14,7 @@
               </div>
             </div>
             <button class="close-btn" @click="close">
-              <i class="ri-close-line"></i>
+              <RiCloseLine />
             </button>
           </div>
 
@@ -27,7 +27,7 @@
                 :class="{ active: activeKey === item.key }"
                 @click="selectTab(item.key)"
               >
-                <span class="icon" :class="item.icon"></span>
+                <component :is="riToCompName(item.icon)" class="icon" />
                 <span class="label">{{ item.label }}</span>
               </div>
             </nav>
@@ -51,6 +51,7 @@ import ApiKeySettingsView from '@/views/settings/ApiKeySettingsView.vue';
 import ExportSettingsView from '@/views/settings/ExportSettingsView.vue';
 import ProfileSettingsView from '@/views/settings/ProfileSettingsView.vue';
 import AboutSettingsView from '@/views/settings/AboutSettingsView.vue';
+import { riToCompName } from '@/utils/icon';
 
 const props = defineProps({
   visible: {
