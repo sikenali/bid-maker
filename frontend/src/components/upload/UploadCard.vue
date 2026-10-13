@@ -24,9 +24,9 @@ const props = withDefaults(defineProps<{
   title?: string;
 }>(), {
   steps: () => [
-    { key: 0, label: '解析文件' },
-    { key: 1, label: '转换释义' },
-    { key: 2, label: '提取字段' },
+    { key: 0, label: '大纲解析' },
+    { key: 1, label: '大纲提取' },
+    { key: 2, label: '大纲展示' },
   ],
 });
 
@@ -131,14 +131,14 @@ function handleReplace() {
 
 const btnDisabled = computed(() => uploading.value);
 const btnLabel = computed(() => {
-  if (uploading.value) return '提取中…';
-  return '一键提取';
+  if (uploading.value) return '制作中…';
+  return '一键制作';
 });
 
 function handleExtract() {
   if (uploading.value) return;
   if (!selectedFile.value) {
-    ElMessage.warning('请先上传文件后再点击提取～');
+    ElMessage.warning('请先上传文件后再点击制作～');
     return;
   }
   startUpload(selectedFile.value);

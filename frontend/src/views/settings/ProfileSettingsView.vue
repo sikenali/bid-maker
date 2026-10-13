@@ -12,12 +12,12 @@ import { riToCompName } from '@/utils/icon';
 const mainTab = ref<'llm' | 'prompts' | 'rules'>('llm');
 
 const TABS = [
-  { key: 'llm' as const,   label: 'LLM 提取',    icon: 'ri-brain-line' },
+  { key: 'llm' as const,   label: 'LLM 生成',    icon: 'ri-brain-line' },
   { key: 'prompts' as const, label: '提示词模板',  icon: 'ri-chat-3-line' },
   { key: 'rules' as const,  label: '规则管理',    icon: 'ri-list-settings-line' },
 ];
 
-// ── Tab 2: LLM 提取 ─────────────────────────────────────────────
+// ── Tab 2: LLM 生成 ─────────────────────────────────────────────
 interface LlmSkill { id: string; skill_name: string; skill_code: string; biz_type: string; prompt_template: string; temperature: number; top_p: number; max_tokens: number; enable: number; enable_llm: number; bind_prompt_template_id: string; version: number; create_time: string; }
 const llmSkills = ref<LlmSkill[]>([]);
 const llmLoading = ref(false);
@@ -184,16 +184,16 @@ async function handleSeedUniversal() {
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════ -->
-    <!-- Tab 1: LLM 提取                                              -->
+    <!-- Tab 1: LLM 生成                                              -->
     <!-- ═══════════════════════════════════════════════════════════ -->
     <template v-if="mainTab==='llm'">
       <div class="toolbar">
-        <button class="btn-primary" @click="openLlmCreate"><RiAddLine class="icon" />提取技能</button>
+        <button class="btn-primary" @click="openLlmCreate"><RiAddLine class="icon" />生成技能</button>
         <UiInput v-model="llmSearch" type="search" class="search-input" placeholder="搜索技能名称" clearable />
       </div>
       <div class="content-area">
         <div v-if="llmLoading" class="loading">正在加载…</div>
-        <div v-else-if="llmSkills.length===0" class="empty">暂无LLM技能，点击「提取技能」创建</div>
+        <div v-else-if="llmSkills.length===0" class="empty">暂无LLM技能，点击「生成技能」创建</div>
         <div v-else class="skill-grid">
           <div v-for="s in llmSkills.filter(sk=>!llmSearch||sk.skill_name.toLowerCase().includes(llmSearch.toLowerCase()))" :key="s.id" class="skill-card" :class="{disabled:s.enable===0}">
             <div class="card-top">

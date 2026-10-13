@@ -21,7 +21,7 @@
       <div class="ai-generate-area">
         <button class="gen-btn outline-btn" @click="extractOutline">
           <RiFileListLine size="20" color="#8B7355" />
-          <span>大纲提取</span>
+          <span>大纲生成</span>
         </button>
         <button class="gen-btn bid-btn" @click="generateBid">
           <RiFilePaper2Line size="20" color="#fff" />
@@ -119,7 +119,7 @@ const extractOutline = async () => {
     editor.value.commands.setContent(md)
   } catch (err) {
     console.error('Extract outline failed:', err)
-    alert('大纲提取失败，请重试')
+    alert('大纲生成失败，请重试')
   }
 }
 

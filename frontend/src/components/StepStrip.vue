@@ -45,7 +45,7 @@
               <animateTransform attributeName="transform" type="rotate" from="0 8 8" to="360 8 8" dur="0.8s" repeatCount="indefinite"/>
             </path>
           </svg>
-          {{ done ? '提取完成' : '提取中…' }}
+          {{ done ? '制作完成' : '制作中…' }}
         </span>
         <span v-else>{{ buttonLabel }}</span>
       </button>
