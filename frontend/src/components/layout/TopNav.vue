@@ -100,8 +100,8 @@ const showSettingsModal = ref(false);
   gap: 12px;
 }
 .nav-btn {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   border: none;
   background-color: var(--color-bg-white, #FFFFFF);
@@ -121,7 +121,7 @@ const showSettingsModal = ref(false);
 .nav-btn .icon {
   font-family: "remixicon", sans-serif;
   font-style: normal;
-  font-size: 16px;
+  font-size: 14px;
   color: var(--color-text-secondary, #6E6A60);
 }
 .nav-btn:hover .icon {

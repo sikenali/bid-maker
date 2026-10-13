@@ -56,7 +56,7 @@ onMounted(() => { year.value = new Date().getFullYear() })
 .tool-logo {
   font-family: "remixicon", sans-serif;
   font-style: normal;
-  font-size: 24px;
+  font-size: 20px;
   line-height: 1;
   color: var(--color-primary, #C0392B);
   flex-shrink: 0;
@@ -78,8 +78,8 @@ onMounted(() => { year.value = new Date().getFullYear() })
   gap: 10px;
 }
 .footer-icon-btn {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   background-color: var(--color-bg-white, #FFFFFF);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
@@ -99,7 +99,7 @@ onMounted(() => { year.value = new Date().getFullYear() })
 .footer-mark {
   font-family: "remixicon", sans-serif;
   font-style: normal;
-  font-size: 16px;
+  font-size: 14px;
   color: inherit;
   transition: transform 0.25s ease;
 }

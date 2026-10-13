@@ -11,9 +11,13 @@ import {
   exportDocx,
 } from '../api/client'
 import { saveAs } from 'file-saver'
-import { setSectionMarkdownContent } from '../utils/markdown'
+import TopNav from '@/components/layout/TopNav.vue'
 import { useChatStore } from '../stores/chatStore'
 import { useSettingsStore } from '../stores/settingsStore'
+import { DocxEditor, createEmptyDocument } from '@eigenpal/docx-editor-vue'
+import { useEditor, EditorContent } from '@tiptap/vue-3'
+import StarterKit from '@tiptap/starter-kit'
+import { Markdown } from '@tiptap/markdown'
 import {
   RiFileListLine,
   RiExpandLeftLine,
@@ -54,6 +58,26 @@ const modelDropdownOpen = ref(false)
 const lastSync = ref<string>('刚刚')
 const toast = ref<{ show: boolean; text: string; type: 'info' | 'error' }>({ show: false, text: '', type: 'info' })
 
+// Editor refs
+const docxEditorRef = ref<InstanceType<typeof DocxEditor> | null>(null)
+const mdEditorRef = ref<any>(null)
+
+// tiptap editor for markdown mode
+const mdEditor = useEditor({
+  extensions: [StarterKit, Markdown],
+  content: '',
+  editorProps: {
+    attributes: {
+      class: 'tiptap-editor',
+    },
+  },
+  onUpdate: ({ editor }) => {
+    const md = editor.getMarkdown()
+    markdown.value = md
+    scheduleSave()
+  },
+})
+
 const sectionBuffers = new Map<string, string>()
 let mdSaveTimer: ReturnType<typeof setTimeout> | null = null
 let genTimeout: ReturnType<typeof setTimeout> | null = null
@@ -87,10 +111,21 @@ onMounted(async () => {
     }
     if (res.data.markdown) {
       markdown.value = res.data.markdown
+      // Load into tiptap editor
+      nextTick(() => {
+        if (mdEditor.value) {
+          mdEditor.value.commands.setContent(res.data.markdown)
+        }
+      })
     } else {
       try {
         const md = await getMarkdown(props.id)
         markdown.value = md.data.markdown || ''
+        nextTick(() => {
+          if (mdEditor.value) {
+            mdEditor.value.commands.setContent(markdown.value)
+          }
+        })
       } catch {}
     }
     settingsStore.fetchModels()
@@ -111,11 +146,12 @@ onUnmounted(() => {
   window.removeEventListener('gen-done', handleGenDone as EventListener)
 })
 
-watch(() => markdown.value, (val) => {
-  if (!val) return
-  if (mdSaveTimer) clearTimeout(mdSaveTimer)
-  lastSync.value = '正在同步...'
-  mdSaveTimer = setTimeout(() => saveMarkdown(val), 1500)
+watch(() => editorMode.value, (mode) => {
+  if (mode === 'markdown' && mdEditor.value && markdown.value) {
+    nextTick(() => {
+      mdEditor.value?.commands.setContent(markdown.value)
+    })
+  }
 })
 
 watch(() => chatStore.messages.length, () => {
@@ -126,6 +162,12 @@ watch(() => chatStore.messages.length, () => {
 })
 
 // ── Persistence ────────────────────────────────────────────────────
+function scheduleSave() {
+  if (mdSaveTimer) clearTimeout(mdSaveTimer)
+  lastSync.value = '正在同步...'
+  mdSaveTimer = setTimeout(() => saveMarkdown(markdown.value), 1500)
+}
+
 async function saveMarkdown(md: string) {
   try {
     await updateSession(props.id, { markdown: md })
@@ -143,19 +185,14 @@ function showToast(text: string, type: 'info' | 'error' = 'info') {
 }
 
 // ── Outline helpers ────────────────────────────────────────────────
-// Backend returns sections flat with children: string[] of IDs.
-// Normalize to nested tree: sections where children is an array of node objects.
 function normalizeOutline(sections: any[]): any[] {
   if (!sections || sections.length === 0) return []
-  // If already nested (children is array of objects), return as-is
   const sample = sections[0]
   if (sample?.children?.[0]?.section_id) return sections
-  // Build map by ID
   const map = new Map<string, any>()
   for (const s of sections) map.set(s.section_id, { ...s, children: [] })
   const roots: any[] = []
   map.forEach((node) => {
-    // Resolve child IDs to objects
     if (Array.isArray(node.children)) {
       const childIds: string[] = node.children
       node.children = childIds.map(id => map.get(id)).filter(Boolean)
@@ -163,7 +200,6 @@ function normalizeOutline(sections: any[]): any[] {
     if (node.parent_id && map.has(node.parent_id)) {
       const parent = map.get(node.parent_id)
       if (parent && parent.children && !parent.children.includes(node)) {
-        // only add if not already resolved via parent's children list
         if (!parent.children.some((c: any) => c.section_id === node.section_id)) {
           parent.children.push(node)
         }
@@ -235,6 +271,10 @@ async function handleGenerateSection(sectionId: string) {
             const buffer = (sectionBuffers.get(sectionId) || '') + data.chunk
             sectionBuffers.set(sectionId, buffer)
             markdown.value = setSectionMarkdownContent(markdown.value || '', section.title, section.level, buffer)
+            // Update tiptap editor if in markdown mode
+            if (editorMode.value === 'markdown' && mdEditor.value) {
+              mdEditor.value.commands.setContent(markdown.value)
+            }
             generationProgress.value = Math.min(95, generationProgress.value + 2)
           }
         } else if (data.done) {
@@ -288,6 +328,9 @@ function handleGenChunk(e: CustomEvent) {
   const buffer = (sectionBuffers.get(sectionId) || '') + (chunk || '')
   sectionBuffers.set(sectionId, buffer)
   markdown.value = setSectionMarkdownContent(markdown.value || '', section.title, section.level, buffer)
+  if (editorMode.value === 'markdown' && mdEditor.value) {
+    mdEditor.value.commands.setContent(markdown.value)
+  }
   generationProgress.value = Math.min(95, generationProgress.value + 1)
 }
 
@@ -297,6 +340,9 @@ function handleGenDone(e: CustomEvent) {
   const buffer = sectionBuffers.get(sectionId)
   if (section && buffer) {
     markdown.value = setSectionMarkdownContent(markdown.value || '', section.title, section.level, buffer)
+    if (editorMode.value === 'markdown' && mdEditor.value) {
+      mdEditor.value.commands.setContent(markdown.value)
+    }
   }
   sectionBuffers.delete(sectionId)
   isGenerating.value = false
@@ -348,113 +394,28 @@ function selectModel(id: string) {
   modelDropdownOpen.value = false
 }
 
-// ── Markdown Renderer (Word-like rich text) ────────────────────────
-interface Block { type: string; html: string }
-
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+// ── Markdown helpers ───────────────────────────────────────────────
+function setSectionMarkdownContent(md: string, title: string, level: number, content: string): string {
+  const prefix = '#'.repeat(level) + ' ' + title
+  const sectionPattern = new RegExp(`^${prefix}\\.?\\s+\\n[\\s\\S]*?(?=^#{1,${level}} |\\Z)`, 'm')
+  const newSection = `${prefix}\n\n${content}\n\n`
+  if (sectionPattern.test(md)) {
+    return md.replace(sectionPattern, newSection)
+  }
+  return md + '\n\n' + newSection
 }
 
-function inlineMd(s: string): string {
-  let out = escapeHtml(s)
-  out = out.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-  out = out.replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>')
-  out = out.replace(/`([^`]+)`/g, '<code>$1</code>')
-  return out
+// ── DocxEditor handlers ────────────────────────────────────────────
+async function handleDocxReady() {
+  // When DocxEditor is ready, we can interact with it
+  console.log('DocxEditor ready')
 }
 
-const renderedBlocks = computed<Block[]>(() => {
-  const lines = (markdown.value || '').split('\n')
-  const blocks: Block[] = []
-  let listBuf: string[] = []
-  let quoteBuf: string[] = []
-  let paraBuf: string[] = []
-  let inCode = false
-  let codeBuf: string[] = []
+function handleModeSwitch(mode: 'word' | 'markdown') {
+  editorMode.value = mode
+}
 
-  const flushList = () => {
-    if (listBuf.length) {
-      const isOrdered = /^ \d+\./.test(listBuf[0]) || /^\d+\./.test(listBuf[0])
-      const tag = isOrdered ? 'ol' : 'ul'
-      blocks.push({
-        type: 'list',
-        html: `<${tag}>` + listBuf.map(l => `<li>${inlineMd(l.replace(/^[-*]\s+|^\d+\.\s+/, ''))}</li>`).join('') + `</${tag}>`,
-      })
-      listBuf = []
-    }
-  }
-  const flushQuote = () => {
-    if (quoteBuf.length) {
-      blocks.push({
-        type: 'quote',
-        html: '<blockquote>' + quoteBuf.map(inlineMd).join('<br/>') + '</blockquote>',
-      })
-      quoteBuf = []
-    }
-  }
-  const flushPara = () => {
-    if (paraBuf.length) {
-      blocks.push({ type: 'p', html: '<p>' + paraBuf.map(inlineMd).join('<br/>') + '</p>' })
-      paraBuf = []
-    }
-  }
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
-    const t = line.trim()
-
-    if (inCode) {
-      if (t === '```') {
-        blocks.push({ type: 'code', html: '<pre><code>' + escapeHtml(codeBuf.join('\n')) + '</code></pre>' })
-        codeBuf = []
-        inCode = false
-      } else {
-        codeBuf.push(line)
-      }
-      continue
-    }
-
-    if (t.startsWith('```')) { inCode = true; continue }
-
-    if (t === '---' || t === '***' || t === '___') {
-      flushList(); flushQuote(); flushPara()
-      blocks.push({ type: 'hr', html: '<hr/>' })
-      continue
-    }
-
-    const h1 = t.match(/^#\s+(.*)$/)
-    const h2 = t.match(/^##\s+(.*)$/)
-    const h3 = t.match(/^###\s+(.*)$/)
-    const h4 = t.match(/^####\s+(.*)$/)
-
-    if (h1) { flushList(); flushQuote(); flushPara(); blocks.push({ type: 'title', html: `<h1>${inlineMd(h1[1])}</h1>` }); continue }
-    if (h2) { flushList(); flushQuote(); flushPara(); blocks.push({ type: 'h2', html: `<h2>${inlineMd(h2[1])}</h2>` }); continue }
-    if (h3) { flushList(); flushQuote(); flushPara(); blocks.push({ type: 'h3', html: `<h3>${inlineMd(h3[1])}</h3>` }); continue }
-    if (h4) { flushList(); flushQuote(); flushPara(); blocks.push({ type: 'h4', html: `<h4>${inlineMd(h4[1])}</h4>` }); continue }
-
-    if (/^>\s?/.test(t)) {
-      flushList(); flushPara()
-      quoteBuf.push(t.replace(/^>\s?/, ''))
-      continue
-    }
-
-    if (/^[-*]\s+/.test(t) || /^\d+\.\s+/.test(t)) {
-      flushQuote(); flushPara()
-      listBuf.push(t)
-      continue
-    }
-
-    if (t === '') { flushList(); flushQuote(); flushPara(); continue }
-
-    flushList(); flushQuote()
-    paraBuf.push(t)
-  }
-
-  flushList(); flushQuote(); flushPara()
-  return blocks
-})
-
-// ── Recursive Outline Node (inline via defineComponent) ───────────
+// ── Recursive Outline Node ─────────────────────────────────────────
 const OutlineNodeRecursive = defineComponent({
   name: 'OutlineNodeRecursive',
   props: {
@@ -536,7 +497,9 @@ const OutlineNodeRecursive = defineComponent({
 
 <template>
   <div class="editor-page">
-    <!-- Left: Outline Panel -->
+    <TopNav title="编辑标书" :show-back="true" />
+    <div class="editor-layout">
+      <!-- Left: Outline Panel -->
     <aside class="outline-panel">
       <div class="outline-header">
         <div class="outline-title-wrap">
@@ -581,11 +544,11 @@ const OutlineNodeRecursive = defineComponent({
     <section class="editor-center">
       <div class="editor-toolbar">
         <div class="mode-switch">
-          <button class="mode-pill" :class="{ active: editorMode === 'word' }" @click="editorMode = 'word'">
+          <button class="mode-pill" :class="{ active: editorMode === 'word' }" @click="handleModeSwitch('word')">
             <RiFileWordLine size="15" />
             <span>Word 模式</span>
           </button>
-          <button class="mode-pill" :class="{ active: editorMode === 'markdown' }" @click="editorMode = 'markdown'">
+          <button class="mode-pill" :class="{ active: editorMode === 'markdown' }" @click="handleModeSwitch('markdown')">
             <RiMarkdownLine size="15" />
             <span>Markdown 模式</span>
           </button>
@@ -604,29 +567,27 @@ const OutlineNodeRecursive = defineComponent({
 
       <div class="editor-scroll">
         <div class="doc-card">
-          <div v-if="editorMode === 'word'" class="doc-render">
-            <div v-if="renderedBlocks.length === 0" class="doc-placeholder">
-              <RiFileWordLine size="48" color="var(--color-text-faint)" />
-              <p>暂无文档内容</p>
-              <p class="hint">点击右下角"生成标书"按钮开始创作</p>
-            </div>
-            <template v-else>
-              <div
-                v-for="(b, i) in renderedBlocks"
-                :key="i"
-                class="block"
-                v-html="b.html"
-              />
-            </template>
-          </div>
-
-          <textarea
-            v-else
-            v-model="markdown"
-            class="doc-md-editor"
-            placeholder="# 标书标题&#10;&#10;在此输入 Markdown 内容..."
-            spellcheck="false"
+          <!-- Word Mode: DocxEditor -->
+          <DocxEditor
+            v-if="editorMode === 'word'"
+            ref="docxEditorRef"
+            :document="createEmptyDocument()"
+            :show-toolbar="true"
+            :show-menu-bar="true"
+            :show-ruler="true"
+            document-name="标书文档"
+            mode="editing"
+            class="docx-editor-wrap"
           />
+
+          <!-- Markdown Mode: Tiptap Editor -->
+          <div v-else class="md-editor-wrap">
+            <EditorContent
+              v-if="mdEditor"
+              :editor="mdEditor"
+              class="tiptap-editor-container"
+            />
+          </div>
         </div>
       </div>
 
@@ -712,6 +673,8 @@ const OutlineNodeRecursive = defineComponent({
       </div>
     </aside>
 
+    </div>
+
     <transition name="fade">
       <div v-if="toast.show" class="toast" :class="toast.type">
         {{ toast.text }}
@@ -723,11 +686,18 @@ const OutlineNodeRecursive = defineComponent({
 <style scoped>
 .editor-page {
   display: flex;
+  flex-direction: column;
   height: 100vh;
   overflow: hidden;
   background: var(--color-bg-secondary);
   font-family: "SourceHanSans-Regular", "SourceHanSans-Medium", var(--font-family-cn);
   color: var(--color-text-primary);
+}
+
+.editor-layout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
 }
 
 /* ── Outline Panel ─────────────────────────────────────────── */
@@ -1052,81 +1022,87 @@ const OutlineNodeRecursive = defineComponent({
 .doc-card {
   background: var(--color-bg-white);
   border-radius: 8px;
-  padding: 56px 60px;
+  padding: 24px;
   max-width: 990px;
   margin: 0 auto;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
   min-height: 720px;
   border: 1px solid var(--color-border-soft);
+  display: flex;
+  flex-direction: column;
 }
 
-.doc-render {
+.docx-editor-wrap {
+  flex: 1;
+  overflow: auto;
+}
+
+.md-editor-wrap {
+  flex: 1;
+  overflow: auto;
+  padding: 32px;
+}
+
+.tiptap-editor-container {
+  outline: none;
+  min-height: 600px;
+}
+
+.tiptap-editor-container :deep(.tiptap) {
+  min-height: 600px;
+  outline: none;
   font-family: "SourceHanSans-Regular", var(--font-family-cn);
   color: var(--color-text-body);
   line-height: 1.85;
   font-size: 16px;
 }
 
-.doc-render h1 {
-  font-family: "SourceHanSans-Bold", "SourceHanSans-Medium", var(--font-family-cn);
-  font-size: 32px;
+.tiptap-editor-container :deep(.tiptap h1) {
+  font-family: "SourceHanSans-Bold", var(--font-family-cn);
+  font-size: 28px;
   font-weight: 700;
   text-align: center;
   color: var(--color-text-primary);
-  margin: 0 0 40px;
+  margin: 0 0 32px;
   line-height: 1.4;
-  letter-spacing: 2px;
 }
 
-.doc-render h2 {
+.tiptap-editor-container :deep(.tiptap h2) {
   font-size: 22px;
   font-weight: 600;
   color: var(--color-text-primary);
   margin: 32px 0 16px;
-  line-height: 1.5;
   padding-left: 12px;
   border-left: 4px solid var(--color-primary);
 }
 
-.doc-render h3 {
+.tiptap-editor-container :deep(.tiptap h3) {
   font-size: 18px;
   font-weight: 600;
   color: var(--color-text-primary);
   margin: 24px 0 12px;
-  line-height: 1.5;
 }
 
-.doc-render h4 {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--color-text-primary);
-  margin: 20px 0 10px;
-  line-height: 1.5;
-}
-
-.doc-render p {
+.tiptap-editor-container :deep(.tiptap p) {
   margin: 12px 0;
   text-indent: 2em;
-  color: var(--color-text-body);
   font-size: 15.5px;
   line-height: 1.85;
 }
 
-.doc-render ul,
-.doc-render ol {
+.tiptap-editor-container :deep(.tiptap ul),
+.tiptap-editor-container :deep(.tiptap ol) {
   margin: 12px 0;
   padding-left: 40px;
 }
 
-.doc-render li {
+.tiptap-editor-container :deep(.tiptap li) {
   margin: 8px 0;
-  padding-left: 4px;
-  color: var(--color-text-body);
   font-size: 15.5px;
   line-height: 1.8;
 }
 
-.doc-render blockquote {
+.tiptap-editor-container :deep(.tiptap blockquote) {
   margin: 16px 0;
   padding: 12px 20px;
   border-left: 3px solid var(--color-primary);
@@ -1134,17 +1110,9 @@ const OutlineNodeRecursive = defineComponent({
   color: var(--color-text-secondary);
   font-style: italic;
   border-radius: 0 6px 6px 0;
-  font-size: 15px;
-  line-height: 1.7;
 }
 
-.doc-render hr {
-  border: none;
-  border-top: 1px dashed var(--color-border);
-  margin: 24px 0;
-}
-
-.doc-render code {
+.tiptap-editor-container :deep(.tiptap code) {
   font-family: 'Menlo', 'Consolas', monospace;
   background: var(--color-bg-secondary);
   padding: 2px 6px;
@@ -1153,7 +1121,7 @@ const OutlineNodeRecursive = defineComponent({
   color: var(--color-primary);
 }
 
-.doc-render pre {
+.tiptap-editor-container :deep(.tiptap pre) {
   margin: 16px 0;
   padding: 16px 20px;
   background: var(--color-bg-secondary);
@@ -1161,51 +1129,9 @@ const OutlineNodeRecursive = defineComponent({
   overflow-x: auto;
 }
 
-.doc-render pre code {
-  background: none;
-  padding: 0;
-  color: var(--color-text-body);
-  font-size: 14px;
-}
-
-.doc-render strong {
+.tiptap-editor-container :deep(.tiptap strong) {
   font-weight: 600;
   color: var(--color-text-primary);
-}
-
-.doc-placeholder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 120px 40px;
-  color: var(--color-text-muted);
-  gap: 12px;
-}
-
-.doc-placeholder p {
-  margin: 0;
-  text-indent: 0;
-  color: var(--color-text-secondary);
-  font-size: 15px;
-}
-
-.doc-placeholder .hint {
-  font-size: 13px;
-  color: var(--color-text-muted);
-}
-
-.doc-md-editor {
-  width: 100%;
-  min-height: 720px;
-  border: none;
-  outline: none;
-  resize: none;
-  font-family: 'Menlo', 'Consolas', 'Courier New', monospace;
-  font-size: 14px;
-  line-height: 1.8;
-  color: var(--color-text-body);
-  background: transparent;
 }
 
 .editor-footer {
