@@ -338,7 +338,12 @@ export async function generateSectionStreamLegacy(
   }
 }
 
+// Legacy aliases for backward compatibility
+export { generateOutlineLegacy as generateOutline }
+export { generateSectionStreamLegacy as generateSectionStream }
+
 // file-saver 直接导出
 export { saveAs }
 
+export { api as apiClient }
 export default api
