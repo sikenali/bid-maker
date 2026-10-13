@@ -35,11 +35,11 @@ const appVersion = 'V1.0.0';
 
       <div class="about-name">{{ BRAND_TITLE }}</div>
 
-      <div class="about-slogan">智能化文件提取工具</div>
+      <div class="about-slogan">智能化文件制作工具</div>
 
       <div class="about-version">版本: {{ appVersion }}</div>
 
-      <a class="about-repo" href="https://github.com/sikenali/bid-extractor" target="_blank" rel="noopener noreferrer" title="访问 GitHub 仓库">
+      <a class="about-repo" href="https://github.com/sikenali/bid-maker" target="_blank" rel="noopener noreferrer" title="访问 GitHub 仓库">
         <span class="repo-right">
           <RiGithubLine class="icon" />
         </span>

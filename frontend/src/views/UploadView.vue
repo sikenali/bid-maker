@@ -23,7 +23,7 @@ function handleReplace() {
 
 <template>
   <div class="upload-view">
-    <TopNav title="智能标书解决方案平台-提取" :show-back="false" />
+    <TopNav title="智能标书解决方案平台-制作" :show-back="false" />
 
     <div class="upload-body">
       <UploadCard @success="handleSuccess" @replace="handleReplace" />
