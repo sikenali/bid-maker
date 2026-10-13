@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { generateOutline, generateSectionStream } from '../api/client'
-import type { Section } from '../api/client'
+import { runOutlineSkill, getGenerateStream } from '../api/client'
+import type { OutlineSection } from '../api/client'
 
 export type GenerationPhase = 'idle' | 'preview' | 'generating' | 'done' | 'error'
 export type SectionState = 'pending' | 'generating' | 'done' | 'error'
@@ -16,19 +16,20 @@ interface ModelConfig {
 
 export const useGenerateStore = defineStore('generate', () => {
   const phase = ref<GenerationPhase>('idle')
-  const outline = ref<Section[]>([])
+  const outline = ref<OutlineSection[]>([])
   const sectionStates = ref<Map<string, SectionState>>(new Map())
   const currentSectionId = ref<string | null>(null)
   const error = ref<string | null>(null)
   const modelConfig = ref<ModelConfig | null>(null)
-  const docId = ref<string>('')
+  const sessionId = ref<string>('')
   const userMessage = ref<string>('')
   const skillPrompt = ref<string>('')
+  let sses: EventSource[] = []
 
   const totalSections = computed(() => {
     let count = 0
-    const countRecursive = (secs: Section[]) => {
-      for (const s of secs) { count++; countRecursive(s.children) }
+    const countRecursive = (secs: OutlineSection[]) => {
+      for (const s of secs) { count++; if (s.children) countRecursive(s.children as OutlineSection[]) }
     }
     countRecursive(outline.value)
     return count
@@ -51,25 +52,24 @@ export const useGenerateStore = defineStore('generate', () => {
     skillPromptText: string,
     config: ModelConfig
   ) {
-    docId.value = id
+    sessionId.value = id
     userMessage.value = message
     skillPrompt.value = skillPromptText
     modelConfig.value = config
     error.value = null
 
     try {
-      const result = await generateOutline({
+      const mode = message ? 'hybrid' : 'auto'
+      const res = await runOutlineSkill(id, {
+        mode,
+        user_input: message || undefined,
         provider: config.provider,
         model: config.model,
-        endpoint: config.endpoint,
-        apiKey: config.apiKey,
-        skill_prompt: skillPromptText,
-        message,
       })
-      outline.value = result.outline
+      outline.value = res.data.sections || []
       phase.value = 'preview'
     } catch (err: any) {
-      error.value = err.message || '生成大纲失败'
+      error.value = err?.response?.data?.error || err.message || '生成大纲失败'
       phase.value = 'error'
     }
   }
@@ -77,53 +77,55 @@ export const useGenerateStore = defineStore('generate', () => {
   function confirmGeneration() {
     phase.value = 'generating'
     const states = new Map<string, SectionState>()
-    const initRecursive = (secs: Section[]) => {
+    const initRecursive = (secs: OutlineSection[]) => {
       for (const s of secs) {
-        states.set(s.id, 'pending')
-        initRecursive(s.children)
+        states.set(s.section_id, 'pending')
+        if (s.children) initRecursive(s.children as OutlineSection[])
       }
     }
     initRecursive(outline.value)
     sectionStates.value = states
   }
 
-  async function generateSection(sectionId: string, section: Section, _sectionPath: string[], outlineContext: Section[]) {
-    if (!modelConfig.value) { error.value = 'no model config'; return }
+  async function generateSection(sectionId: string, section: OutlineSection, _sectionPath: string[], outlineContext: OutlineSection[]) {
+    if (!modelConfig.value || !sessionId.value) { error.value = 'no model config'; return }
 
     sectionStates.value.set(sectionId, 'generating')
     currentSectionId.value = sectionId
 
     try {
-      await generateSectionStream(
-        {
-          provider: modelConfig.value.provider,
-          model: modelConfig.value.model,
-          endpoint: modelConfig.value.endpoint,
-          apiKey: modelConfig.value.apiKey,
-          section_id: sectionId,
-          section,
-          outline: outlineContext,
-          user_prompt: `请编写章节「${section.title}」的详细内容`,
-        },
-        (sid, chunk) => {
-          window.dispatchEvent(new CustomEvent('gen-chunk', { detail: { sectionId: sid, chunk } }))
-        },
-        (sid) => {
-          sectionStates.value.set(sid, 'done')
-          currentSectionId.value = null
-          window.dispatchEvent(new CustomEvent('gen-done', { detail: { sectionId: sid } }))
-          let allDone = true
-          sectionStates.value.forEach(s => { if (s !== 'done') allDone = false })
-          if (allDone) phase.value = 'done'
-        },
-        (sid, err) => {
-          sectionStates.value.set(sid, 'error')
-          currentSectionId.value = null
-          error.value = err
+      const es = getGenerateStream(sessionId.value, sectionId, modelConfig.value.provider, modelConfig.value.model)
+      sses.push(es)
+      await new Promise<void>((resolve, reject) => {
+        es.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data)
+            if (data.chunk) {
+              window.dispatchEvent(new CustomEvent('gen-chunk', { detail: { sectionId, chunk: data.chunk } }))
+            } else if (data.done) {
+              es.close()
+              sses = sses.filter(x => x !== es)
+              sectionStates.value.set(sectionId, 'done')
+              currentSectionId.value = null
+              window.dispatchEvent(new CustomEvent('gen-done', { detail: { sectionId } }))
+              let allDone = true
+              sectionStates.value.forEach(s => { if (s !== 'done') allDone = false })
+              if (allDone) phase.value = 'done'
+              resolve()
+            } else if (data.error) {
+              reject(new Error(data.error))
+            }
+          } catch { /* skip */ }
         }
-      )
+        es.onerror = () => {
+          es.close()
+          sses = sses.filter(x => x !== es)
+          reject(new Error('stream error'))
+        }
+      })
     } catch (err: any) {
       sectionStates.value.set(sectionId, 'error')
+      currentSectionId.value = null
       error.value = err.message || '生成失败'
     }
   }
@@ -139,9 +141,11 @@ export const useGenerateStore = defineStore('generate', () => {
     currentSectionId.value = null
     error.value = null
     modelConfig.value = null
-    docId.value = ''
+    sessionId.value = ''
     userMessage.value = ''
     skillPrompt.value = ''
+    sses.forEach(es => es.close())
+    sses = []
   }
 
   function getSectionState(sectionId: string): SectionState {
@@ -150,7 +154,7 @@ export const useGenerateStore = defineStore('generate', () => {
 
   return {
     phase, outline, sectionStates, currentSectionId, error,
-    modelConfig, docId, userMessage, skillPrompt,
+    modelConfig, sessionId, userMessage, skillPrompt,
     totalSections, completedSections, progressPercent,
     generateOutline: generateOutlineAction,
     confirmGeneration, generateSection, retrySection, reset, getSectionState,

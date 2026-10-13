@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { getSession, getMarkdown, updateOutline } from '../api/client'
+import { getSession, getMarkdown, updateOutline, updateSession } from '../api/client'
 
 export interface OutlineSection {
   section_id: string
@@ -49,7 +49,7 @@ export const useDocumentStore = defineStore('document', () => {
 
   const saveMarkdown = async (sessionId: string, md: string) => {
     markdown.value = md
-    // TODO: 实现 saveMarkdown API
+    await updateSession(sessionId, { markdown: md })
   }
 
   const updateOutlineTree = async (sessionId: string, newOutline: any) => {

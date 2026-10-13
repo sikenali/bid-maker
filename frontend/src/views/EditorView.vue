@@ -10,6 +10,7 @@ import {
   getMarkdown,
   exportDocx,
 } from '../api/client'
+import { getTemplateList, getExportSettings, type TemplateData, type TemplateSection } from '../api/settings'
 import { saveAs } from 'file-saver'
 import TopNav from '@/components/layout/TopNav.vue'
 import { useChatStore } from '../stores/chatStore'
@@ -17,10 +18,9 @@ import { useSettingsStore } from '../stores/settingsStore'
 import { DocxEditor, createEmptyDocument } from '@eigenpal/docx-editor-vue'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
-import { Markdown } from '@tiptap/markdown'
+import { marked } from 'marked'
+import TurndownService from 'turndown'
 import {
-  RiFileListLine,
-  RiExpandLeftLine,
   RiEditLine,
   RiDeleteBinLine,
   RiDownload2Line,
@@ -34,6 +34,8 @@ import {
   RiPlayCircleLine,
   RiArrowDropRightLine,
   RiArrowDropDownLine,
+  RiFileListLine,
+  RiCommandLine,
 } from '@remixicon/vue'
 
 const props = defineProps<{ id: string }>()
@@ -55,16 +57,48 @@ const isOutlineCollapsed = ref(false)
 const outlineExpanded = reactive<Record<string, boolean>>({})
 const chatInput = ref('')
 const modelDropdownOpen = ref(false)
-const lastSync = ref<string>('刚刚')
+const lastSync = ref<string>('')
+const lastSaveTime = ref<string>('')
 const toast = ref<{ show: boolean; text: string; type: 'info' | 'error' }>({ show: false, text: '', type: 'info' })
+
+// Template state
+const templates = ref<TemplateData[]>([])
+const selectedTemplateId = ref<number | null>(null)
+const templateDropdownOpen = ref(false)
+
+// Skill command state
+const skillPopupOpen = ref(false)
+const skillPopupFilter = ref('')
+const skillPopupIndex = ref(0)
+const activeSkill = ref<any>(null)
+
+const availableSkills = computed(() => {
+  return settingsStore.allSkills.filter((s: any) => s.enabled !== false)
+})
+
+const filteredSkills = computed(() => {
+  if (!skillPopupFilter.value) return availableSkills.value
+  const filter = skillPopupFilter.value.toLowerCase()
+  return availableSkills.value.filter((s: any) => 
+    s.name.toLowerCase().includes(filter) || 
+    s.description?.toLowerCase().includes(filter)
+  )
+})
 
 // Editor refs
 const docxEditorRef = ref<InstanceType<typeof DocxEditor> | null>(null)
 const mdEditorRef = ref<any>(null)
 
+// turndown service for converting HTML to markdown
+const turndownService = new TurndownService({
+  headingStyle: 'atx',
+  codeBlockStyle: 'fenced',
+  bulletListMarker: '-',
+})
+
 // tiptap editor for markdown mode
 const mdEditor = useEditor({
-  extensions: [StarterKit, Markdown],
+  extensions: [StarterKit],
   content: '',
   editorProps: {
     attributes: {
@@ -72,7 +106,8 @@ const mdEditor = useEditor({
     },
   },
   onUpdate: ({ editor }) => {
-    const md = editor.getMarkdown()
+    const html = editor.getHTML()
+    const md = turndownService.turndown(html)
     markdown.value = md
     scheduleSave()
   },
@@ -129,6 +164,9 @@ onMounted(async () => {
       } catch {}
     }
     settingsStore.fetchModels()
+    // Load templates
+    const tplRes = getTemplateList()
+    templates.value = tplRes.templates || []
   } catch (err) {
     console.error('Failed to load session:', err)
     showToast('加载失败，请重试', 'error')
@@ -136,6 +174,7 @@ onMounted(async () => {
 
   window.addEventListener('gen-chunk', handleGenChunk as EventListener)
   window.addEventListener('gen-done', handleGenDone as EventListener)
+  document.addEventListener('click', handleClickOutside)
 })
 
 onUnmounted(() => {
@@ -144,6 +183,7 @@ onUnmounted(() => {
   sses.forEach(es => es.close())
   window.removeEventListener('gen-chunk', handleGenChunk as EventListener)
   window.removeEventListener('gen-done', handleGenDone as EventListener)
+  document.removeEventListener('click', handleClickOutside)
 })
 
 watch(() => editorMode.value, (mode) => {
@@ -161,6 +201,87 @@ watch(() => chatStore.messages.length, () => {
   })
 })
 
+// ── Click outside handler ──────────────────────────────────────────
+function handleClickOutside(e: MouseEvent) {
+  const target = e.target as HTMLElement
+  if (!target.closest('.template-select') && templateDropdownOpen.value) {
+    templateDropdownOpen.value = false
+  }
+  if (!target.closest('.model-select') && modelDropdownOpen.value) {
+    modelDropdownOpen.value = false
+  }
+  if (!target.closest('.skill-popup') && !target.closest('.chat-input')) {
+    skillPopupOpen.value = false
+    activeSkill.value = null
+  }
+}
+
+// ── Template handlers ──────────────────────────────────────────────
+function toggleTemplateDropdown() {
+  templateDropdownOpen.value = !templateDropdownOpen.value
+}
+
+function selectTemplate(id: number) {
+  selectedTemplateId.value = id
+  templateDropdownOpen.value = false
+}
+
+function clearTemplate() {
+  selectedTemplateId.value = null
+}
+
+const selectedTemplate = computed(() => {
+  return templates.value.find(t => t.id === selectedTemplateId.value) || null
+})
+
+// ── Skill command handlers ─────────────────────────────────────────
+function handleChatInput(e: Event) {
+  const target = e.target as HTMLInputElement
+  const value = target.value
+  const match = value.match(/\/(\S*)$/)
+  
+  if (match) {
+    skillPopupOpen.value = true
+    skillPopupFilter.value = match[1]
+    skillPopupIndex.value = 0
+  } else {
+    skillPopupOpen.value = false
+    activeSkill.value = null
+  }
+}
+
+function handleSkillKeyDown(e: KeyboardEvent) {
+  if (!skillPopupOpen.value) return
+  
+  if (e.key === 'ArrowDown') {
+    e.preventDefault()
+    skillPopupIndex.value = (skillPopupIndex.value + 1) % filteredSkills.value.length
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault()
+    skillPopupIndex.value = (skillPopupIndex.value - 1 + filteredSkills.value.length) % filteredSkills.value.length
+  } else if (e.key === 'Enter' && skillPopupIndex.value < filteredSkills.value.length) {
+    e.preventDefault()
+    selectSkill(filteredSkills.value[skillPopupIndex.value])
+  } else if (e.key === 'Escape') {
+    skillPopupOpen.value = false
+    activeSkill.value = null
+  }
+}
+
+function selectSkill(skill: any) {
+  activeSkill.value = skill
+  chatInput.value = ''
+  skillPopupOpen.value = false
+  // Focus back to input
+  nextTick(() => {
+    document.querySelector('.chat-input')?.focus()
+  })
+}
+
+function removeActiveSkill() {
+  activeSkill.value = null
+}
+
 // ── Persistence ────────────────────────────────────────────────────
 function scheduleSave() {
   if (mdSaveTimer) clearTimeout(mdSaveTimer)
@@ -171,10 +292,12 @@ function scheduleSave() {
 async function saveMarkdown(md: string) {
   try {
     await updateSession(props.id, { markdown: md })
-    lastSync.value = '刚刚'
+    lastSync.value = '已自动保存'
+    const now = new Date()
+    lastSaveTime.value = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0')
   } catch {
     lastSync.value = '同步失败'
-    setTimeout(() => { lastSync.value = '刚刚' }, 3000)
+    setTimeout(() => { lastSync.value = '已自动保存' }, 3000)
   }
 }
 
@@ -188,15 +311,21 @@ function showToast(text: string, type: 'info' | 'error' = 'info') {
 function normalizeOutline(sections: any[]): any[] {
   if (!sections || sections.length === 0) return []
   const sample = sections[0]
+  // Already nested (children are objects, not string IDs)
   if (sample?.children?.[0]?.section_id) return sections
   const map = new Map<string, any>()
-  for (const s of sections) map.set(s.section_id, { ...s, children: [] })
+  for (const s of sections) {
+    // Preserve original children (string IDs) before replacing with empty array
+    const originalChildren = Array.isArray(s.children) ? [...s.children] : []
+    map.set(s.section_id, { ...s, children: [], _originalChildren: originalChildren })
+  }
   const roots: any[] = []
   map.forEach((node) => {
-    if (Array.isArray(node.children)) {
-      const childIds: string[] = node.children
-      node.children = childIds.map(id => map.get(id)).filter(Boolean)
+    // Resolve string child IDs to actual objects
+    if (node._originalChildren && node._originalChildren.length > 0) {
+      node.children = node._originalChildren.map((id: string) => map.get(id)).filter(Boolean)
     }
+    delete node._originalChildren
     if (node.parent_id && map.has(node.parent_id)) {
       const parent = map.get(node.parent_id)
       if (parent && parent.children && !parent.children.includes(node)) {
@@ -240,12 +369,34 @@ async function handleGenerateOutline() {
   if (isGeneratingOutline.value) return
   isGeneratingOutline.value = true
   try {
-    const res = await runOutlineSkill(props.id, { mode: 'hybrid' })
-    if (res.data.sections) {
-      outline.value = normalizeOutline(res.data.sections)
+    // Use selected template if available
+    if (selectedTemplate.value && selectedTemplate.value.content && selectedTemplate.value.content.length > 0) {
+      const templateSections = selectedTemplate.value.content.map((s: TemplateSection, idx: number) => ({
+        section_id: `sec-${Date.now()}-${idx}`,
+        title: s.title,
+        level: s.level,
+        order: idx,
+        required: true,
+        parent_id: null,
+        source: 'template',
+        requirements: [],
+        response_strategy: 'satisfy',
+        response_basis: '',
+        children: s.children || [],
+        content: '',
+        status: 'pending',
+      }))
+      outline.value = normalizeOutline(templateSections)
       for (const s of outline.value) outlineExpanded[s.section_id] = true
+      showToast(`已使用模板「${selectedTemplate.value.name}」生成大纲`)
+    } else {
+      const res = await runOutlineSkill(props.id, { mode: 'auto' })
+      if (res.data.sections) {
+        outline.value = normalizeOutline(res.data.sections)
+        for (const s of outline.value) outlineExpanded[s.section_id] = true
+      }
+      showToast('大纲已生成')
     }
-    showToast('大纲已生成')
   } catch (err: any) {
     showToast(err?.response?.data?.error || '生成大纲失败', 'error')
   } finally {
@@ -365,11 +516,26 @@ async function handleExport() {
   if (isExporting.value) return
   isExporting.value = true
   if (mdSaveTimer) { clearTimeout(mdSaveTimer); mdSaveTimer = null }
+  const title = session.value?.title || '标书'
+  const dateStr = new Date().toISOString().slice(0, 10)
   try {
-    const blob = await exportDocx(props.id)
-    const filename = `${session.value?.title || '标书'}_${new Date().toISOString().slice(0, 10)}.docx`
-    saveAs(blob, filename)
-    showToast('导出成功')
+    const exportSettings = await getExportSettings()
+    const format = exportSettings.format || 'docx'
+    if (format === 'markdown' || format === 'md') {
+      const mdRes = await getMarkdown(props.id)
+      const mdContent = mdRes.data.markdown || markdown.value || ''
+      if (!mdContent.trim()) {
+        showToast('没有可导出的内容', 'error')
+        return
+      }
+      const blob = new Blob([mdContent], { type: 'text/markdown;charset=utf-8' })
+      saveAs(blob, `${title}_${dateStr}.md`)
+      showToast('Markdown 导出成功')
+    } else {
+      const blob = await exportDocx(props.id)
+      saveAs(blob, `${title}_${dateStr}.docx`)
+      showToast('Word 导出成功')
+    }
   } catch (err) {
     showToast('导出失败，请重试', 'error')
   } finally {
@@ -381,8 +547,17 @@ async function handleExport() {
 async function handleSendChat() {
   const text = chatInput.value.trim()
   if (!text || chatStore.isSending) return
+  
+  let message = text
+  if (activeSkill.value) {
+    // Prepend skill prompt to message
+    const skillPrompt = activeSkill.value.prompt || activeSkill.value.description || ''
+    message = skillPrompt ? `${skillPrompt}\n\n${text}` : text
+    activeSkill.value = null
+  }
+  
   chatInput.value = ''
-  await chatStore.sendMessage(text, activeSectionId.value || undefined, props.id, settingsStore.selectedModelId)
+  await chatStore.sendMessage(message, activeSectionId.value || undefined, props.id, settingsStore.selectedModelId)
 }
 
 function toggleModelDropdown() {
@@ -437,8 +612,8 @@ const OutlineNodeRecursive = defineComponent({
             h(
               'div',
               {
-                class: ['outline-node', { active: props.activeId === s.section_id }],
-                style: { paddingLeft: `${20 + props.level * 18}px` },
+                class: ['outline-node', { active: props.activeId === s.section_id, child: props.level > 0 }],
+                style: { paddingLeft: `${16 + props.level * 20}px` },
                 onClick: () => emit('select', s.section_id),
               },
               [
@@ -502,15 +677,8 @@ const OutlineNodeRecursive = defineComponent({
       <!-- Left: Outline Panel -->
     <aside class="outline-panel">
       <div class="outline-header">
-        <div class="outline-title-wrap">
-          <div class="outline-title-icon">
-            <RiFileListLine size="20" color="#fff" />
-          </div>
-          <span class="outline-title">大纲</span>
-        </div>
-        <button class="icon-btn" @click="isOutlineCollapsed = !isOutlineCollapsed" :title="isOutlineCollapsed ? '展开全部' : '收起全部'">
-          <RiExpandLeftLine size="18" />
-        </button>
+        <span class="outline-title">标书大纲</span>
+        <span class="outline-count" @click="isOutlineCollapsed = !isOutlineCollapsed">{{ outline.length }} 节</span>
       </div>
 
       <div class="outline-tree">
@@ -533,6 +701,27 @@ const OutlineNodeRecursive = defineComponent({
       </div>
 
       <div class="outline-footer">
+        <div class="template-select" @click.stop="toggleTemplateDropdown">
+          <span class="template-label">模板</span>
+          <span class="template-name" :class="{ 'placeholder': !selectedTemplate }">
+            {{ selectedTemplate ? selectedTemplate.name : '选择模板' }}
+          </span>
+          <RiArrowDownSLine size="14" :style="{ transform: templateDropdownOpen ? 'rotate(180deg)' : '' }" />
+        </div>
+        <div v-if="templateDropdownOpen" class="template-dropdown" @click.stop>
+          <div
+            v-for="tpl in templates"
+            :key="tpl.id"
+            class="template-option"
+            :class="{ active: tpl.id === selectedTemplateId }"
+            @click="selectTemplate(tpl.id!)"
+          >
+            <span class="template-option-name">{{ tpl.name }}</span>
+            <span class="template-option-category">{{ tpl.category }}</span>
+          </div>
+          <div v-if="templates.length === 0" class="template-empty">暂无模板</div>
+          <div v-if="selectedTemplateId" class="template-clear" @click="clearTemplate">清除选择</div>
+        </div>
         <button class="btn-export" @click="handleExport" :disabled="isExporting">
           <RiDownload2Line size="18" />
           <span>{{ isExporting ? '导出中...' : '导出文件' }}</span>
@@ -558,10 +747,7 @@ const OutlineNodeRecursive = defineComponent({
             <RiLoader4Line size="14" class="spin-icon" />
             生成中 {{ generationProgress }}%
           </span>
-          <span v-else class="sync-status">
-            <span class="dot"></span>
-            {{ lastSync }}
-          </span>
+          <span v-else-if="lastSaveTime" class="sync-status">已自动保存 · {{ lastSaveTime }}</span>
         </div>
       </div>
 
@@ -609,8 +795,8 @@ const OutlineNodeRecursive = defineComponent({
     <aside class="assistant-panel">
       <div class="assistant-header">
         <div class="assistant-title">
-          <RiSparklingLine size="22" color="var(--color-primary)" />
-          <span>智能助手</span>
+          <RiSparklingLine size="22" color="var(--color-info)" />
+          <span>ChatGPT 助手</span>
         </div>
         <div class="model-select" @click.stop="toggleModelDropdown">
           <span class="model-name">{{ currentModelName }}</span>
@@ -643,20 +829,26 @@ const OutlineNodeRecursive = defineComponent({
             class="msg-row"
             :class="msg.role === 'user' ? 'msg-user' : 'msg-ai'"
           >
-            <div v-if="msg.role === 'ai'" class="avatar avatar-ai">
-              <RiSparklingLine size="14" color="var(--color-primary)" />
-            </div>
             <div class="bubble">{{ msg.content }}</div>
           </div>
         </template>
       </div>
 
       <div class="chat-input-wrap">
+        <div v-if="activeSkill" class="skill-chip">
+          <RiCommandLine size="14" />
+          <span>{{ activeSkill.name }}</span>
+          <button class="skill-chip-close" @click="removeActiveSkill">
+            <RiDeleteBinLine size="12" />
+          </button>
+        </div>
         <div class="chat-input-row">
           <input
             v-model="chatInput"
             class="chat-input"
-            placeholder="请输入你的问题..."
+            placeholder="描述你的需求，输入 / 调用技能…"
+            @input="handleChatInput"
+            @keydown="handleSkillKeyDown"
             @keydown.enter.prevent="handleSendChat"
             :disabled="chatStore.isSending"
           />
@@ -669,6 +861,19 @@ const OutlineNodeRecursive = defineComponent({
             <RiLoader4Line v-if="chatStore.isSending" size="16" class="spin-icon" />
             <RiSendPlaneFill v-else size="16" />
           </button>
+        </div>
+        <div v-if="skillPopupOpen && filteredSkills.length > 0" class="skill-popup">
+          <div
+            v-for="(skill, i) in filteredSkills"
+            :key="skill.id"
+            class="skill-option"
+            :class="{ active: i === skillPopupIndex }"
+            @mouseenter="skillPopupIndex = i"
+            @click="selectSkill(skill)"
+          >
+            <div class="skill-option-name">{{ skill.name }}</div>
+            <div class="skill-option-desc">{{ skill.description }}</div>
+          </div>
         </div>
       </div>
     </aside>
@@ -712,7 +917,7 @@ const OutlineNodeRecursive = defineComponent({
 
 .outline-header {
   height: 74px;
-  padding: 0 24px;
+  padding: 24px 24px 20px 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -720,52 +925,30 @@ const OutlineNodeRecursive = defineComponent({
   flex-shrink: 0;
 }
 
-.outline-title-wrap {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.outline-title-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  background: var(--color-primary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
 .outline-title {
-  font-size: 17px;
-  font-weight: 600;
-  font-family: "SourceHanSans-Medium", var(--font-family-cn);
+  font-size: 20px;
+  font-weight: 700;
+  font-family: "SourceHanSans-Bold", var(--font-family-cn);
   color: var(--color-text-primary);
 }
 
-.icon-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
-  border: none;
-  background: transparent;
-  color: var(--color-text-secondary);
+.outline-count {
+  font-size: 15px;
+  font-family: "SourceHanSans-Regular", var(--font-family-cn);
+  color: var(--color-text-muted);
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
+  user-select: none;
+  transition: color 0.2s;
 }
 
-.icon-btn:hover {
-  background: var(--color-bg-secondary);
+.outline-count:hover {
   color: var(--color-primary);
 }
 
 .outline-tree {
   flex: 1;
   overflow-y: auto;
-  padding: 12px 16px;
+  padding: 0 16px;
 }
 
 .outline-empty {
@@ -786,16 +969,16 @@ const OutlineNodeRecursive = defineComponent({
 }
 
 .outline-node-wrap {
-  margin-bottom: 2px;
+  margin-bottom: 0;
 }
 
 .outline-node {
-  height: 46px;
+  height: 48px;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding-right: 8px;
-  border-radius: 8px;
+  padding: 0 16px;
+  border-radius: 10px;
   cursor: pointer;
   transition: background 0.2s;
   position: relative;
@@ -806,12 +989,26 @@ const OutlineNodeRecursive = defineComponent({
 }
 
 .outline-node.active {
-  background: var(--color-primary-soft);
+  background: rgba(247, 239, 223, 1);
 }
 
-.outline-node.active .node-title {
-  color: var(--color-primary);
-  font-weight: 500;
+.outline-node.child .node-title {
+  font-size: 15px;
+  font-family: "SourceHanSans-Regular", var(--font-family-cn);
+  color: var(--color-text-secondary);
+}
+
+.outline-node.active.child {
+  background: rgba(247, 239, 223, 1);
+}
+
+.outline-node.active.child .node-title {
+  color: var(--color-text-primary);
+  font-weight: 400;
+}
+
+.outline-node.child {
+  height: 44px;
 }
 
 .expand-btn {
@@ -841,12 +1038,13 @@ const OutlineNodeRecursive = defineComponent({
 
 .node-title {
   flex: 1;
-  font-size: 14px;
-  color: var(--color-text-body);
+  font-size: 16px;
+  font-family: "SourceHanSans-Medium", var(--font-family-cn);
+  color: var(--color-text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  line-height: 1.4;
+  line-height: 1.2;
 }
 
 .node-actions {
@@ -889,34 +1087,150 @@ const OutlineNodeRecursive = defineComponent({
 }
 
 .outline-footer {
-  height: 92px;
-  padding: 20px 24px;
+  padding: 16px 24px 24px 24px;
   border-top: 1px solid var(--color-border-soft);
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.template-select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 16px;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.template-select:hover {
+  border-color: var(--color-primary);
+}
+
+.template-label {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  font-family: "SourceHanSans-Regular", var(--font-family-cn);
+}
+
+.template-name {
+  flex: 1;
+  font-size: 14px;
+  color: var(--color-text-primary);
+  font-family: "SourceHanSans-Regular", var(--font-family-cn);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.template-name.placeholder {
+  color: var(--color-text-faint);
+}
+
+.template-select > [data-icon] {
+  color: var(--color-text-secondary);
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.template-dropdown {
+  position: absolute;
+  bottom: 56px;
+  left: 0;
+  right: 0;
+  background: var(--color-bg-white);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+  z-index: 20;
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.template-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--color-text-body);
+  transition: background 0.15s;
+  gap: 8px;
+}
+
+.template-option:hover {
+  background: var(--color-bg-secondary);
+}
+
+.template-option.active {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-weight: 500;
+}
+
+.template-option-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.template-option-category {
+  color: var(--color-text-muted);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.template-empty {
+  padding: 20px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.template-clear {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--color-error);
+  cursor: pointer;
+  border-top: 1px solid var(--color-border-soft);
+  text-align: center;
+  margin-top: 4px;
+}
+
+.template-clear:hover {
+  background: var(--color-error-soft);
 }
 
 .btn-export {
   width: 100%;
   height: 52px;
   border-radius: 10px;
-  border: none;
-  background: var(--color-primary);
-  color: #fff;
-  font-size: 15px;
-  font-weight: 500;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-white);
+  color: var(--color-text-body);
+  font-size: 16px;
+  font-family: "SourceHanSans-Regular", var(--font-family-cn);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
   transition: all 0.2s;
-  box-shadow: 0 2px 8px rgba(192, 57, 43, 0.2);
 }
 
 .btn-export:hover:not(:disabled) {
-  background: #A93226;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(192, 57, 43, 0.3);
+  border-color: var(--color-border-hover);
+  background: var(--color-bg-secondary);
 }
 
 .btn-export:disabled {
@@ -935,8 +1249,7 @@ const OutlineNodeRecursive = defineComponent({
 }
 
 .editor-toolbar {
-  height: 46px;
-  padding: 0 24px;
+  padding: 24px 60px 0 60px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -946,37 +1259,39 @@ const OutlineNodeRecursive = defineComponent({
 
 .mode-switch {
   display: flex;
-  gap: 0;
-  background: var(--color-bg-white);
-  border: 1px solid var(--color-border);
-  border-radius: 23px;
-  padding: 3px;
+  gap: 4px;
+  background: var(--color-bg-secondary);
+  border-radius: 10px;
+  padding: 4px;
 }
 
 .mode-pill {
   height: 38px;
-  padding: 0 18px;
+  padding: 0 16px;
   border: none;
   background: transparent;
   color: var(--color-text-secondary);
-  border-radius: 20px;
+  border-radius: 8px;
   cursor: pointer;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 15px;
+  font-family: "SourceHanSans-Regular", var(--font-family-cn);
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   transition: all 0.2s;
 }
 
 .mode-pill.active {
-  background: var(--color-primary);
-  color: #fff;
-  box-shadow: 0 1px 4px rgba(192, 57, 43, 0.25);
+  background: var(--color-bg-white);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+}
+
+.mode-pill.active [data-icon] {
+  color: rgba(43, 87, 154, 1);
 }
 
 .mode-pill:not(.active):hover {
-  background: var(--color-bg-secondary);
   color: var(--color-text-primary);
 }
 
@@ -999,30 +1314,21 @@ const OutlineNodeRecursive = defineComponent({
 }
 
 .sync-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--color-text-muted);
-  font-size: 12px;
-}
-
-.sync-status .dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--color-success);
+  font-size: 14px;
+  font-family: "SourceHanSans-Regular", var(--font-family-cn);
+  color: var(--color-text-faint);
 }
 
 .editor-scroll {
   flex: 1;
   overflow-y: auto;
-  padding: 24px;
+  padding: 16px 60px 0 60px;
 }
 
 .doc-card {
   background: var(--color-bg-white);
-  border-radius: 8px;
-  padding: 24px;
+  border-radius: 14px;
+  padding: 48px 56px;
   max-width: 990px;
   margin: 0 auto;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
@@ -1052,28 +1358,29 @@ const OutlineNodeRecursive = defineComponent({
   min-height: 600px;
   outline: none;
   font-family: "SourceHanSans-Regular", var(--font-family-cn);
-  color: var(--color-text-body);
-  line-height: 1.85;
-  font-size: 16px;
+  color: var(--color-text-primary);
+  line-height: 1.2;
+  font-size: 17px;
 }
 
 .tiptap-editor-container :deep(.tiptap h1) {
   font-family: "SourceHanSans-Bold", var(--font-family-cn);
-  font-size: 28px;
+  font-size: 32px;
   font-weight: 700;
-  text-align: center;
+  text-align: left;
   color: var(--color-text-primary);
-  margin: 0 0 32px;
-  line-height: 1.4;
+  margin: 0 0 28px;
+  line-height: 1.2;
 }
 
 .tiptap-editor-container :deep(.tiptap h2) {
-  font-size: 22px;
-  font-weight: 600;
+  font-family: "SourceHanSans-Bold", var(--font-family-cn);
+  font-size: 24px;
+  font-weight: 700;
   color: var(--color-text-primary);
-  margin: 32px 0 16px;
-  padding-left: 12px;
-  border-left: 4px solid var(--color-primary);
+  margin: 32px 0 20px;
+  padding-left: 0;
+  border-left: none;
 }
 
 .tiptap-editor-container :deep(.tiptap h3) {
@@ -1085,9 +1392,8 @@ const OutlineNodeRecursive = defineComponent({
 
 .tiptap-editor-container :deep(.tiptap p) {
   margin: 12px 0;
-  text-indent: 2em;
-  font-size: 15.5px;
-  line-height: 1.85;
+  font-size: 17px;
+  line-height: 1.2;
 }
 
 .tiptap-editor-container :deep(.tiptap ul),
@@ -1098,8 +1404,8 @@ const OutlineNodeRecursive = defineComponent({
 
 .tiptap-editor-container :deep(.tiptap li) {
   margin: 8px 0;
-  font-size: 15.5px;
-  line-height: 1.8;
+  font-size: 17px;
+  line-height: 1.2;
 }
 
 .tiptap-editor-container :deep(.tiptap blockquote) {
@@ -1135,8 +1441,7 @@ const OutlineNodeRecursive = defineComponent({
 }
 
 .editor-footer {
-  height: 82px;
-  padding: 12px 24px;
+  padding: 24px 60px;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -1150,28 +1455,32 @@ const OutlineNodeRecursive = defineComponent({
 .btn-primary-md {
   height: 58px;
   width: 280px;
-  border-radius: 12px;
+  border-radius: 10px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  font-size: 16px;
+  gap: 8px;
+  font-size: 17px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
-  font-family: inherit;
+  font-family: "SourceHanSans-Medium", var(--font-family-cn);
 }
 
 .btn-outline-md {
   background: var(--color-bg-white);
-  color: var(--color-text-primary);
-  border: 1px solid var(--color-border);
+  color: rgba(176, 141, 58, 1);
+  border: 1px solid rgba(198, 164, 92, 1);
 }
 
 .btn-outline-md:hover:not(:disabled) {
-  background: var(--color-primary-soft);
-  border-color: var(--color-primary);
-  color: var(--color-primary);
+  background: var(--color-bg-secondary);
+  border-color: rgba(198, 164, 92, 1);
+  color: rgba(176, 141, 58, 1);
+}
+
+.btn-outline-md [data-icon] {
+  color: rgba(198, 164, 92, 1);
 }
 
 .btn-primary-md {
@@ -1201,14 +1510,13 @@ const OutlineNodeRecursive = defineComponent({
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  background: var(--color-bg-white);
-  border-left: 1px solid var(--color-border-soft);
+  background: rgba(251, 249, 245, 1);
+  border: 1px solid var(--color-border-soft);
   position: relative;
 }
 
 .assistant-header {
-  height: 78px;
-  padding: 0 20px;
+  padding: 20px 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1220,32 +1528,35 @@ const OutlineNodeRecursive = defineComponent({
 .assistant-title {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   font-size: 17px;
-  font-weight: 600;
-  color: var(--color-primary);
-  font-family: "SourceHanSans-Medium", var(--font-family-cn);
+  font-weight: 700;
+  color: var(--color-text-primary);
+  font-family: "SourceHanSans-Bold", var(--font-family-cn);
+}
+
+.assistant-title [data-icon] {
+  color: var(--color-info);
 }
 
 .model-select {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   height: 38px;
-  padding: 0 14px;
+  padding: 0 16px;
   background: var(--color-bg-secondary);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: 10px;
   cursor: pointer;
-  font-size: 13px;
-  color: var(--color-text-primary);
+  font-size: 15px;
+  font-family: "SourceHanSans-Regular", var(--font-family-cn);
+  color: var(--color-text-body);
   transition: all 0.2s;
-  font-family: inherit;
   min-width: 0;
 }
 
 .model-select:hover {
-  border-color: var(--color-primary);
+  background: var(--color-border-soft);
 }
 
 .model-name {
@@ -1256,6 +1567,7 @@ const OutlineNodeRecursive = defineComponent({
 }
 
 .model-select > [data-icon] {
+  color: var(--color-text-secondary);
   transition: transform 0.2s;
 }
 
@@ -1306,10 +1618,10 @@ const OutlineNodeRecursive = defineComponent({
 .chat-area {
   flex: 1;
   overflow-y: auto;
-  padding: 20px 16px;
+  padding: 24px 20px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
 }
 
 .chat-empty {
@@ -1338,59 +1650,37 @@ const OutlineNodeRecursive = defineComponent({
 
 .msg-row {
   display: flex;
-  gap: 10px;
   align-items: flex-start;
   max-width: 100%;
 }
 
-.msg-row.msg-ai {
-  align-self: flex-start;
-}
-
-.msg-row.msg-user {
-  align-self: flex-end;
-  flex-direction: row-reverse;
-}
-
-.avatar {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: var(--color-primary-soft);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
 .bubble {
-  max-width: 340px;
-  padding: 12px 16px;
+  max-width: 360px;
+  padding: 16px 20px;
   border-radius: 12px;
-  font-size: 14px;
-  line-height: 1.65;
+  font-size: 15px;
+  font-family: "SourceHanSans-Regular", var(--font-family-cn);
+  line-height: 1.2;
+  color: var(--color-text-primary);
   word-break: break-word;
 }
 
 .msg-ai .bubble {
-  background: #F7F3EA;
-  color: var(--color-text-body);
-  border-top-left-radius: 4px;
+  background: rgba(243, 238, 228, 1);
 }
 
 .msg-user .bubble {
-  background: var(--color-primary);
-  color: #fff;
-  border-top-right-radius: 4px;
+  background: rgba(247, 238, 220, 1);
 }
 
 .chat-input-wrap {
-  height: 88px;
-  padding: 16px;
+  padding: 8px 20px 24px 20px;
   border-top: 1px solid var(--color-border-soft);
   flex-shrink: 0;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
 }
 
 .chat-input-row {
@@ -1403,24 +1693,106 @@ const OutlineNodeRecursive = defineComponent({
 .chat-input {
   width: 100%;
   height: 56px;
-  padding: 0 50px 0 18px;
+  padding: 0 8px 0 20px;
   border: 1px solid var(--color-border);
-  border-radius: 28px;
-  background: var(--color-bg-secondary);
+  border-radius: 12px;
+  background: var(--color-bg-white);
   outline: none;
-  font-size: 14px;
+  font-size: 15px;
+  font-family: "SourceHanSans-Regular", var(--font-family-cn);
   color: var(--color-text-primary);
-  font-family: inherit;
   transition: all 0.2s;
 }
 
 .chat-input:focus {
   border-color: var(--color-primary);
-  background: var(--color-bg-white);
 }
 
 .chat-input::placeholder {
+  color: var(--color-text-faint);
+}
+
+.skill-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--color-primary-soft);
+  border: 1px solid var(--color-primary);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--color-primary);
+  font-family: "SourceHanSans-Regular", var(--font-family-cn);
+  align-self: flex-start;
+}
+
+.skill-chip > [data-icon] {
+  color: var(--color-primary);
+}
+
+.skill-chip-close {
+  background: transparent;
+  border: none;
+  color: var(--color-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border-radius: 4px;
+  margin-left: 4px;
+}
+
+.skill-chip-close:hover {
+  background: rgba(192, 57, 43, 0.1);
+}
+
+.skill-popup {
+  position: absolute;
+  bottom: 100%;
+  left: 20px;
+  right: 20px;
+  margin-bottom: 4px;
+  background: var(--color-bg-white);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+  z-index: 20;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.skill-option {
+  padding: 10px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.skill-option:hover,
+.skill-option.active {
+  background: var(--color-bg-secondary);
+}
+
+.skill-option.active {
+  background: var(--color-primary-soft);
+}
+
+.skill-option-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  font-family: "SourceHanSans-Regular", var(--font-family-cn);
+}
+
+.skill-option-desc {
+  font-size: 12px;
   color: var(--color-text-muted);
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .send-btn {
@@ -1428,7 +1800,7 @@ const OutlineNodeRecursive = defineComponent({
   right: 8px;
   width: 38px;
   height: 38px;
-  border-radius: 50%;
+  border-radius: 10px;
   border: none;
   background: var(--color-primary);
   color: #fff;
@@ -1441,7 +1813,6 @@ const OutlineNodeRecursive = defineComponent({
 
 .send-btn:hover:not(:disabled) {
   background: #A93226;
-  transform: scale(1.05);
 }
 
 .send-btn:disabled {

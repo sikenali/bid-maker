@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
-import { getModels, getTemplates } from '../api/client'
+import { getModels } from '../api/client'
 
 export interface ApiKeyEntry {
   id: string
@@ -133,15 +133,10 @@ export const useSettingsStore = defineStore('settings', () => {
   )
 
   function fetchTemplates() {
-    getTemplates().then((res: any) => {
-      const tpls: TemplateInfo[] = res?.data?.templates || []
-      const existingIds = new Set(templates.value.map(t => t.id))
-      for (const t of tpls) {
-        if (!existingIds.has(t.id)) {
-          templates.value.push(t)
-        }
-      }
-    }).catch(() => {})
+    try {
+      const saved = localStorage.getItem('user_templates')
+      if (saved) templates.value = JSON.parse(saved)
+    } catch { /* keep defaults */ }
   }
 
   function addTemplate(name: string, file?: File) {

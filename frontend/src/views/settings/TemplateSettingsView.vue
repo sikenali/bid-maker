@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
 import { ElMessage } from '@/utils/toast';
-import apiClient from '@/api/client';
+import { getTemplateList, createTemplate, updateTemplate, deleteTemplate, resetTemplates } from '@/api/settings';
 import { UiInput, UiSwitch, UiModal, UiTip } from '@/components/ui';
 
 interface TemplateItem {
@@ -11,6 +11,13 @@ interface TemplateItem {
   category: string;
   type: string;
   enabled: boolean;
+  content: TemplateSection[];
+}
+
+interface TemplateSection {
+  title: string;
+  level: number;
+  children?: TemplateSection[];
 }
 
 const templates = ref<TemplateItem[]>([]);
@@ -27,18 +34,22 @@ const showAddDialog = ref(false);
 const newTemplateName = ref('');
 const newTemplateDesc = ref('');
 const newTemplateCategory = ref('');
+const newTemplateContent = ref<TemplateSection[]>([]);
+const newTemplateContentText = ref('');
 
 async function loadTemplates() {
   loading.value = true;
   try {
-    const res = await apiClient.get('/settings/templates');
-    templates.value = ((res.data.templates || []) as any[]).map((t: any) => ({
+    const res = getTemplateList();
+    templates.value = (res.templates || []).map((t: any) => ({
       ...t,
+      id: t.id?.toString() || Date.now().toString(),
       enabled: t.enabled ?? true,
+      content: t.content || [],
     }));
   } catch {
     templates.value = [];
-    ElMessage.error('模板加载失败，请检查后端服务');
+    ElMessage.error('模板加载失败');
   } finally {
     loading.value = false;
   }
@@ -59,7 +70,13 @@ async function toggleEnabled(tpl: TemplateItem) {
   const next = !tpl.enabled;
   tpl.enabled = next;
   try {
-    await apiClient.put(`/settings/templates/${tpl.id}`, { enabled: next });
+    await updateTemplate(parseInt(tpl.id), {
+      name: tpl.name,
+      type: tpl.type as any,
+      category: tpl.category,
+      description: tpl.description,
+      keywords: [],
+    });
     ElMessage.success(next ? `已启用「${tpl.name}」` : `已停用「${tpl.name}」`);
   } catch {
     tpl.enabled = !next;
@@ -78,7 +95,7 @@ function openDelete(tpl: TemplateItem) {
 async function confirmDelete() {
   if (!deletingTpl.value) return;
   try {
-    await apiClient.delete(`/settings/templates/${deletingTpl.value.id}`);
+    await deleteTemplate(parseInt(deletingTpl.value.id));
     templates.value = templates.value.filter(t => t.id !== deletingTpl.value?.id);
     applyFilter();
     showDeleteDialog.value = false;
@@ -88,26 +105,47 @@ async function confirmDelete() {
   }
 }
 
+function parseContentText(text: string): TemplateSection[] {
+  const sections: TemplateSection[] = [];
+  const lines = text.split('\n').filter(l => l.trim());
+  for (const line of lines) {
+    const match = line.match(/^(\d+)[.\s]+(.+)$/);
+    if (match) {
+      const level = parseInt(match[1]);
+      const title = match[2].trim();
+      sections.push({ title, level, children: [] });
+    }
+  }
+  return sections;
+}
+
+function formatContentText(sections: TemplateSection[]): string {
+  return sections.map(s => `${s.level}. ${s.title}`).join('\n');
+}
+
 async function handleAdd() {
   if (!newTemplateName.value.trim()) {
     ElMessage.warning('请输入模板名称'); return;
   }
   try {
-    const res: any = await apiClient.post('/settings/templates', {
+    await createTemplate({
       name: newTemplateName.value.trim(),
       description: newTemplateDesc.value.trim(),
       category: newTemplateCategory.value.trim() || '自定义',
       type: 'custom',
+      keywords: [],
+      content: parseContentText(newTemplateContentText.value),
     });
-    templates.value.unshift({ ...res.data, enabled: true });
+    await loadTemplates();
     showAddDialog.value = false;
     newTemplateName.value = '';
     newTemplateDesc.value = '';
     newTemplateCategory.value = '';
+    newTemplateContentText.value = '';
     applyFilter();
     ElMessage.success('已添加');
   } catch (err: any) {
-    ElMessage.error(err?.response?.data?.error || '添加失败');
+    ElMessage.error(err?.message || '添加失败');
   }
 }
 
@@ -115,9 +153,10 @@ const showResetDialog = ref(false);
 
 async function confirmReset() {
   try {
-    const res: any = await apiClient.post('/settings/templates/reset');
-    templates.value = ((res.data?.templates || []) as any[]).map((t: any) => ({
+    const res = await resetTemplates();
+    templates.value = (res.templates || []).map((t: any) => ({
       ...t,
+      id: t.id?.toString() || Date.now().toString(),
       enabled: t.enabled ?? true,
     }));
     applyFilter();
@@ -133,12 +172,14 @@ const editingTpl = ref<TemplateItem | null>(null);
 const editName = ref('');
 const editDesc = ref('');
 const editCategory = ref('');
+const editContentText = ref('');
 
 function openEdit(tpl: TemplateItem) {
   editingTpl.value = tpl;
   editName.value = tpl.name;
   editDesc.value = tpl.description;
   editCategory.value = tpl.category;
+  editContentText.value = formatContentText(tpl.content || []);
   showEditDialog.value = true;
 }
 
@@ -148,15 +189,15 @@ async function confirmEdit() {
     return;
   }
   try {
-    const res: any = await apiClient.put(`/settings/templates/${editingTpl.value.id}`, {
+    await updateTemplate(parseInt(editingTpl.value.id), {
       name: editName.value.trim(),
       description: editDesc.value.trim(),
       category: editCategory.value.trim() || '自定义',
+      type: editingTpl.value.type as any,
+      keywords: [],
+      content: parseContentText(editContentText.value),
     });
-    const idx = templates.value.findIndex(t => t.id === editingTpl.value?.id);
-    if (idx >= 0) {
-      templates.value[idx] = { ...templates.value[idx], ...res.data, enabled: res.data.enabled ?? true };
-    }
+    await loadTemplates();
     applyFilter();
     showEditDialog.value = false;
     ElMessage.success('模板已更新');
@@ -309,6 +350,16 @@ onMounted(() => {
         <label class="form-label">所属分类</label>
         <UiInput v-model="newTemplateCategory" placeholder="例如：商务标、技术标" />
       </div>
+      <div class="form-group">
+        <label class="form-label">大纲内容 <span class="required">*</span></label>
+        <UiInput
+          v-model="newTemplateContentText"
+          multiline
+          :rows="8"
+          placeholder="按层级输入章节，格式：1. 一级标题&#10;1.1 二级标题&#10;2. 另一个一级标题"
+        />
+        <span class="form-hint">每行一个章节，编号表示层级（1=一级，2=二级）</span>
+      </div>
     </UiModal>
 
     <!-- 编辑模板弹窗 -->
@@ -331,6 +382,16 @@ onMounted(() => {
       <div class="form-group">
         <label class="form-label">所属分类</label>
         <UiInput v-model="editCategory" placeholder="例如：商务标、技术标" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">大纲内容 <span class="required">*</span></label>
+        <UiInput
+          v-model="editContentText"
+          multiline
+          :rows="8"
+          placeholder="按层级输入章节，格式：1. 一级标题&#10;1.1 二级标题&#10;2. 另一个一级标题"
+        />
+        <span class="form-hint">每行一个章节，编号表示层级（1=一级，2=二级）</span>
       </div>
     </UiModal>
     <!-- 删除模板确认弹窗 -->
@@ -519,6 +580,7 @@ onMounted(() => {
 .form-label { font-size: 14px; color: var(--color-text-body, #3A3A3A); font-weight: 500; font-family: "SourceHanSans-Regular", var(--font-family-cn); }
 .form-label .required { color: var(--color-primary, #C0392B); }
 .form-group .ui-input { width: 100%; }
+.form-hint { font-size: 12px; color: var(--color-text-muted, #8A8578); font-family: "SourceHanSans-Regular", var(--font-family-cn); margin-top: 4px; }
 
 /* 确认类弹窗正文 */
 .confirm-text {

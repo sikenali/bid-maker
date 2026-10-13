@@ -7,6 +7,17 @@ import (
 	"strings"
 )
 
+// ScanLocalSkills scans the default skills directory and returns available skills
+func ScanLocalSkills() []LocalSkill {
+	defaultDir := filepath.Join(os.Getenv("HOME"), ".local", "skills")
+	if _, err := os.Stat(defaultDir); os.IsNotExist(err) {
+		defaultDir = filepath.Join(os.Getenv("HOME"), ".agents", "skills")
+	}
+	svc := NewSkillService(defaultDir)
+	skills, _ := svc.ScanLocalSkills()
+	return skills
+}
+
 // LocalSkill represents a skill found in the system's skills directory
 type LocalSkill struct {
 	Path        string `json:"path"`

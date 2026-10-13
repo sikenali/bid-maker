@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/example/bid-maker-backend/internal/config"
 	"github.com/example/bid-maker-backend/internal/model"
@@ -51,6 +52,8 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 		api.GET("/tasks/:taskId", h.GetTaskStatus)
 		api.GET("/models", h.ListModels)
 		api.POST("/test-key", h.TestApiKey)
+		api.POST("/chat", h.Chat)
+		api.GET("/local-skills", h.ListLocalSkills)
 	}
 }
 
@@ -187,6 +190,7 @@ func (h *Handler) RunOutlineSkill(c *gin.Context) {
 				Source: model.SourceAuto, Status: model.ChapterStatusPending,
 			})
 		}
+		service.BuildChildrenTree(outline.Sections)
 	}
 	// 通道B/hybrid 需要走模型
 	if mode == "custom" || mode == "hybrid" {
@@ -298,7 +302,8 @@ func (h *Handler) RunGenerateSection(c *gin.Context) {
 
 func (h *Handler) RunGenerateFull(c *gin.Context) {
 	sessionID := c.Param("id")
-	if _, ok := h.sessionStore.GetSession(sessionID); !ok {
+	session, ok := h.sessionStore.GetSession(sessionID)
+	if !ok {
 		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
 		return
 	}
@@ -310,13 +315,104 @@ func (h *Handler) RunGenerateFull(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	if session.Outline == nil || len(session.Outline.Sections) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请先在大纲中生成章节，再执行全文生成"})
+		return
+	}
 	taskID := uuid.New().String()
 	h.taskQueue.CreateTask(taskID, sessionID, "generate_full", "")
+
 	go func() {
 		h.taskQueue.UpdateStatus(taskID, "running")
-		h.taskQueue.UpdateResult(taskID, map[string]any{"message": "Full generation started"})
+		sections := flattenSections(session.Outline.Sections)
+		total := len(sections)
+		if total == 0 {
+			h.taskQueue.UpdateError(taskID, "no sections to generate")
+			return
+		}
+		completed := 0
+		var errMsg string
+		for _, sec := range sections {
+			if sec.Content != "" {
+				completed++
+				h.taskQueue.UpdateProgress(taskID, int(float64(completed)/float64(total)*100))
+				continue
+			}
+			prompt := buildSectionPrompt(session, sec)
+			messages := []map[string]string{
+				{"role": "system", "content": "你是一名资深的投标文件撰写专家。请根据大纲章节要求，撰写专业、完整、可直接使用的标书内容。输出纯文本，不要加额外的Markdown标题。"},
+				{"role": "user", "content": prompt},
+			}
+			content, err := h.gateway.Chat(c.Request.Context(), req.Provider, messages, req.Model)
+			if err != nil {
+				h.sessionStore.MarkSectionFailed(sessionID, sec.SectionID, err.Error())
+				errMsg = fmt.Sprintf("section %s: %s", sec.Title, err.Error())
+				continue
+			}
+			now := time.Now().UTC()
+			h.sessionStore.SetSectionContent(sessionID, sec.SectionID, sec.Title, sec.Level, content, &now)
+			completed++
+			progress := int(float64(completed) / float64(total) * 100)
+			h.taskQueue.UpdateProgress(taskID, progress)
+			fmt.Fprintf(c.Writer, "event: chunk\ndata: %s\n\n", jsonStr(gin.H{"section_id": sec.SectionID, "chunk": content, "title": sec.Title, "progress": progress}))
+			c.Writer.Flush()
+		}
+		result := map[string]any{"completed": completed, "total": total}
+		if errMsg != "" {
+			result["error"] = errMsg
+		}
+		h.taskQueue.UpdateResult(taskID, result)
 	}()
 	c.JSON(http.StatusOK, gin.H{"task_id": taskID, "status": "started"})
+}
+
+func flattenSections(sections []*model.Section) []*model.Section {
+	var result []*model.Section
+	for _, s := range sections {
+		result = append(result, s)
+		if s.Children != nil {
+			for _, childID := range s.Children {
+				for _, child := range sections {
+					if child.SectionID == childID {
+						result = append(result, child)
+						break
+					}
+				}
+			}
+		}
+	}
+	return result
+}
+
+func buildSectionPrompt(session *model.Session, sec *model.Section) string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("请撰写标书章节「%s」的详细内容。\n\n", sec.Title))
+	sb.WriteString(fmt.Sprintf("标书标题：%s\n", session.Title))
+	if session.BidNo != "" {
+		sb.WriteString(fmt.Sprintf("招标编号：%s\n", session.BidNo))
+	}
+	if session.ParsingOutput != nil {
+		if len(session.ParsingOutput.TechnicalIndicators) > 0 {
+			sb.WriteString("\n技术指标要求：\n")
+			for _, ti := range session.ParsingOutput.TechnicalIndicators {
+				sb.WriteString(fmt.Sprintf("- %s: %s (必填: %v)\n", ti.Name, ti.Requirement, ti.IsMandatory))
+			}
+		}
+		if len(session.ParsingOutput.CommercialReqs) > 0 {
+			sb.WriteString("\n商务要求：\n")
+			for _, cr := range session.ParsingOutput.CommercialReqs {
+				sb.WriteString(fmt.Sprintf("- %s: %s\n", cr.Category, cr.Description))
+			}
+		}
+		if len(session.ParsingOutput.ScoringPoints) > 0 {
+			sb.WriteString("\n评分要点：\n")
+			for _, sp := range session.ParsingOutput.ScoringPoints {
+				sb.WriteString(fmt.Sprintf("- %s (%g分): %s\n", sp.ScoringItem, sp.FullScore, sp.Description))
+			}
+		}
+	}
+	sb.WriteString("\n请输出专业的标书内容，不要输出章节标题本身。")
+	return sb.String()
 }
 
 func (h *Handler) GenerateSectionStream(c *gin.Context) {
@@ -503,6 +599,82 @@ func (h *Handler) TestApiKey(c *gin.Context) {
 	}
 	available, errMsg := h.gateway.TestProvider(req.Provider, req.Key, req.Model, req.Endpoint, req.Format)
 	c.JSON(http.StatusOK, gin.H{"available": available, "error": errMsg})
+}
+
+func (h *Handler) Chat(c *gin.Context) {
+	var req struct {
+		DocumentID string            `json:"document_id"`
+		Message    string            `json:"message"`
+		Mode       string            `json:"mode"`
+		SectionID  string            `json:"section_id"`
+		History    []map[string]string `json:"history"`
+		Provider   string            `json:"provider"`
+		Model      string            `json:"model"`
+		Endpoint   string            `json:"endpoint"`
+		Format     string            `json:"format"`
+		APIKey     string            `json:"apiKey"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.Message == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "message is required"})
+		return
+	}
+
+	// Build context from session if available
+	var sessionContext string
+	if req.DocumentID != "" {
+		if session, ok := h.sessionStore.GetSession(req.DocumentID); ok {
+			var sb strings.Builder
+			if session.Outline != nil {
+				sb.WriteString("当前标书大纲：\n")
+				for _, s := range session.Outline.Sections {
+					indent := strings.Repeat("  ", s.Level-1)
+					sb.WriteString(fmt.Sprintf("%s%s\n", indent, s.Title))
+				}
+			}
+			if session.Markdown != "" {
+				sb.WriteString("\n当前标书内容（摘要）：\n")
+				md := session.Markdown
+				if len(md) > 3000 {
+					md = md[:3000] + "..."
+				}
+				sb.WriteString(md)
+			}
+			if session.ParsingOutput != nil && session.ParsingOutput.SourceMeta != nil && session.ParsingOutput.SourceMeta.Title != "" {
+				sb.WriteString("\n招标文件信息：" + session.ParsingOutput.SourceMeta.Title + "\n")
+			}
+			sessionContext = sb.String()
+		}
+	}
+
+	var messages []map[string]string
+	systemPrompt := "你是一个专业的标书写作助手，帮助用户撰写和优化投标文件内容。请用中文回答。"
+	if sessionContext != "" {
+		systemPrompt += "\n\n" + sessionContext
+	}
+	messages = append(messages, map[string]string{"role": "system", "content": systemPrompt})
+	for _, h := range req.History {
+		if h["role"] == "ai" {
+			h["role"] = "assistant"
+		}
+		messages = append(messages, h)
+	}
+	messages = append(messages, map[string]string{"role": "user", "content": req.Message})
+
+	content, err := h.gateway.Chat(c.Request.Context(), req.Provider, messages, req.Model)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "AI 服务不可用: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"reply": content})
+}
+
+func (h *Handler) ListLocalSkills(c *gin.Context) {
+	skills := service.ScanLocalSkills()
+	c.JSON(http.StatusOK, gin.H{"skills": skills})
 }
 
 func buildMarkdownFromOutline(outline *model.BidOutline) string {

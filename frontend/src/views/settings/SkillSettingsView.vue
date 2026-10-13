@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
 import { ElMessage, ElMessageBox } from '@/utils/toast';
-import apiClient from '@/api/client';
+import { getSkillList, updateSkill, deleteSkill, resetSkills, syncSkills } from '@/api/settings';
 import { UiInput, UiSwitch, UiModal, UiTip } from '@/components/ui';
 
 interface RuleItem {
@@ -58,7 +58,7 @@ async function confirmEdit() {
     return;
   }
   try {
-    await apiClient.put(`/rules/skills/${encodeURIComponent(editingSkill.value.name)}`, {
+    await updateSkill(editingSkill.value.name, {
       name: editName.value.trim(),
       description: editDesc.value.trim(),
     });
@@ -180,7 +180,7 @@ const MOCK_SKILLS: SkillItem[] = [
 async function handleResetSkills() {
   try {
     await ElMessageBox.confirm('确定恢复默认技能？已导入的自定义技能将被清除。', '确认恢复默认');
-    await apiClient.post('/rules/reset-skills');
+    await resetSkills();
     skills.value = MOCK_SKILLS;
     filteredSkills.value = MOCK_SKILLS;
     expandedSkill.value = null;
@@ -191,8 +191,7 @@ async function handleResetSkills() {
 async function handleSyncSkills() {
   syncLoading.value = true;
   try {
-    const res = await apiClient.post('/rules/sync-skills');
-    const result = res.data;
+    const result = await syncSkills();
     if (result.synced > 0) {
       ElMessage.success(`同步成功：${result.synced} 个本地技能已导入`);
     } else {
@@ -200,7 +199,7 @@ async function handleSyncSkills() {
     }
     await loadSkills();
   } catch (err: any) {
-    ElMessage.error(err?.response?.data?.error || '同步失败');
+    ElMessage.error(err?.message || '同步失败');
   } finally {
     syncLoading.value = false;
   }
@@ -209,13 +208,13 @@ async function handleSyncSkills() {
 async function loadSkills() {
   loading.value = true;
   try {
-    const res = await apiClient.get<SkillItem[]>('/rules/skills');
-    const data = (res.data || []).map((s: any) => ({
+    const data = getSkillList();
+    const skillsList = (data || []).map((s: any) => ({
       ...s,
       enabled: s.enabled ?? true,
     }));
-    if (data.length > 0) {
-      skills.value = data;
+    if (skillsList.length > 0) {
+      skills.value = skillsList;
     } else {
       skills.value = MOCK_SKILLS;
     }
@@ -264,7 +263,7 @@ async function toggleEnabled(skill: SkillItem) {
   const next = !skill.enabled;
   skill.enabled = next;
   try {
-    await apiClient.put(`/rules/skills/${encodeURIComponent(skill.name)}`, { enabled: next });
+    await updateSkill(skill.name, { enabled: next ? 1 : 0 });
     ElMessage.success(next ? `已启用「${skill.name}」` : `已禁用「${skill.name}」`);
   } catch {
     skill.enabled = !next;
@@ -275,7 +274,7 @@ async function toggleEnabled(skill: SkillItem) {
 async function handleDelete(skill: SkillItem) {
   try {
     await ElMessageBox.confirm(`确定删除技能「${skill.name}」及其 ${skill.rules.length} 条规则？`, '确认删除');
-    await apiClient.delete(`/rules/skills/${encodeURIComponent(skill.name)}`);
+    await deleteSkill(skill.name);
     ElMessage.success('已删除');
     if (expandedSkill.value === skill.name) expandedSkill.value = null;
     await loadSkills();

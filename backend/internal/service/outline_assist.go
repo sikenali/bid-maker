@@ -259,3 +259,22 @@ func ValidateOutlineUpdate(old *model.BidOutline, nu *model.BidOutline) error {
 	}
 	return nil
 }
+
+// BuildChildrenTree 根据 ParentID 构建每个章节的 Children 列表.
+// 输入为扁平的章节列表,每个 Section 的 Children 将被填充为子章节的 SectionID 数组.
+func BuildChildrenTree(sections []*model.Section) {
+	childrenMap := make(map[string][]string)
+	for _, s := range sections {
+		if s.ParentID != nil {
+			pid := *s.ParentID
+			childrenMap[pid] = append(childrenMap[pid], s.SectionID)
+		}
+	}
+	for _, s := range sections {
+		if kids, ok := childrenMap[s.SectionID]; ok {
+			s.Children = kids
+		} else {
+			s.Children = []string{}
+		}
+	}
+}

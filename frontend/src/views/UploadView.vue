@@ -7,6 +7,8 @@ import UploadCard from '@/components/upload/UploadCard.vue';
 import CreditQualificationModal from '@/components/layout/CreditQualificationModal.vue';
 import BiddingSitesModal from '@/components/layout/BiddingSitesModal.vue';
 
+import { ElMessage } from '@/utils/toast';
+
 const router = useRouter();
 const showCreditModal = ref(false);
 const showBiddingModal = ref(false);
@@ -16,6 +18,7 @@ function handleSuccess(sessionId: string) {
 }
 
 function handleReplace() {
+  ElMessage.info('已清除文件，请重新选择');
 }
 </script>
 

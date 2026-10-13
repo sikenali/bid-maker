@@ -98,6 +98,47 @@ func (ss *SessionStore) UpdateSectionContent(sessionID, sectionID, content strin
 	}
 }
 
+func (ss *SessionStore) SetSectionContent(sessionID, sectionID, title string, level int, content string, generatedAt *time.Time) {
+	ss.mu.Lock()
+	defer ss.mu.Unlock()
+	if session, ok := ss.sessions[sessionID]; ok {
+		if session.Markdown == "" {
+			indent := strings.Repeat("#", level)
+			session.Markdown = indent + " " + title + "\n\n" + content
+		} else {
+			session.Markdown += "\n\n" + content
+		}
+		if session.Outline != nil {
+			for _, s := range session.Outline.Sections {
+				if s.SectionID == sectionID {
+					s.Content = content
+					s.Status = model.ChapterStatusGenerated
+					s.GeneratedAt = generatedAt
+					break
+				}
+			}
+		}
+		session.UpdatedAt = time.Now().UTC()
+	}
+}
+
+func (ss *SessionStore) MarkSectionFailed(sessionID, sectionID, errMsg string) {
+	ss.mu.Lock()
+	defer ss.mu.Unlock()
+	if session, ok := ss.sessions[sessionID]; ok {
+		if session.Outline != nil {
+			for _, s := range session.Outline.Sections {
+				if s.SectionID == sectionID {
+					s.Status = model.ChapterStatusFailed
+					s.ResponseBasis = errMsg
+					break
+				}
+			}
+		}
+		session.UpdatedAt = time.Now().UTC()
+	}
+}
+
 func buildMarkdownFromOutline(outline *model.BidOutline) string {
 	var md strings.Builder
 	for _, section := range outline.Sections {

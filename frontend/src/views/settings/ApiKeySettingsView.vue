@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { ElMessage } from '@/utils/toast';
-import apiClient from '@/api/client';
-import { deleteApiKey, toggleApiKey, testApiKey } from '@/api/settings';
+import { deleteApiKey, toggleApiKey, testApiKey, updateApiKey, addApiKey, getApiKeyList } from '@/api/settings';
 import { UiSelect, UiInput, UiSelectCard, UiTip, UiModal, type UiSelectOption } from '@/components/ui';
 
 const configTab = ref<'provider' | 'custom'>('provider');
@@ -78,8 +77,8 @@ const deletingId = ref('');
 
 async function loadKeys() {
   try {
-    const res = await apiClient.get('/settings/apikeys');
-    savedKeys.value = (res.data || []).map((k: any) => ({
+    const keys = getApiKeyList();
+    savedKeys.value = (keys || []).map((k: any) => ({
       id: k.id,
       provider: k.provider,
       model: k.model,
@@ -106,17 +105,17 @@ async function handleSave() {
     if (key) payload.api_key = key;
     try {
       if (editingId.value) {
-        await apiClient.put(`/settings/apikeys/${editingId.value}`, payload);
+        await updateApiKey(editingId.value, payload);
         ElMessage.success('自定义配置已更新');
       } else {
         if (!key) { ElMessage.warning('请输入 API Key'); return; }
-        await apiClient.post('/settings/apikeys', payload);
+        await addApiKey(payload);
         ElMessage.success('自定义配置已保存');
       }
       resetForm();
       await loadKeys();
     } catch (err: any) {
-      ElMessage.error(err?.response?.data?.error || '保存失败');
+      ElMessage.error(err?.message || '保存失败');
     }
   } else {
     if (!selectedProvider.value || !selectedModelName.value) {
@@ -130,17 +129,17 @@ async function handleSave() {
     if (key) payload.api_key = key;
     try {
       if (editingId.value) {
-        await apiClient.put(`/settings/apikeys/${editingId.value}`, payload);
+        await updateApiKey(editingId.value, payload);
         ElMessage.success(`「${selectedProvider.value}」配置已更新`);
       } else {
         if (!key) { ElMessage.warning('请输入 API Key'); return; }
-        await apiClient.post('/settings/apikeys', payload);
+        await addApiKey(payload);
         ElMessage.success(`「${selectedProvider.value}」API Key 已保存`);
       }
       resetForm();
       await loadKeys();
     } catch (err: any) {
-      ElMessage.error(err?.response?.data?.error || '保存失败');
+      ElMessage.error(err?.message || '保存失败');
     }
   }
 }
