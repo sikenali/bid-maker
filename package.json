@@ -1,0 +1,15 @@
+{
+  "scripts": {
+    "dev": "concurrently -n parse,backend,frontend -c yellow,green,cyan \"cd parse-service && node server.js\" \"wait-on tcp:8000 && cd backend && (command -v air > /dev/null && air || go run ./cmd/server/)\" \"wait-on tcp:8080 && pnpm --filter bid-maker-frontend dev\"",
+    "dev:backend": "cd backend && go run ./cmd/server/",
+    "dev:parse": "cd parse-service && node server.js",
+    "dev:frontend": "pnpm --filter bid-maker-frontend dev"
+  },
+  "dependencies": {
+    "@remixicon/vue": "^4.9.0"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.3",
+    "wait-on": "^9.1.0"
+  }
+}

@@ -1,0 +1,530 @@
+package handler
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+
+	"github.com/example/bid-maker-backend/internal/config"
+	"github.com/example/bid-maker-backend/internal/model"
+	"github.com/example/bid-maker-backend/internal/service"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+)
+
+type Handler struct {
+	gateway      *service.LLMGateway
+	sessionStore *service.SessionStore
+	taskQueue    *service.TaskQueue
+	config       *config.Config
+}
+
+func New(cfg *config.Config) *Handler {
+	gateway := service.NewLLMGateway(toServiceProviders(cfg.LLMProviders), "")
+	return &Handler{
+		gateway:      gateway,
+		sessionStore: service.GetSessionStore(),
+		taskQueue:    service.NewTaskQueue(),
+		config:       cfg,
+	}
+}
+
+func (h *Handler) RegisterRoutes(r *gin.Engine) {
+	api := r.Group("/api")
+	{
+		api.POST("/sessions", h.CreateSession)
+		api.GET("/sessions/:id", h.GetSession)
+		api.PUT("/sessions/:id", h.UpdateSession)
+		api.POST("/sessions/:id/skills/parse", h.RunParseSkill)
+		api.POST("/sessions/:id/skills/outline", h.RunOutlineSkill)
+		api.PUT("/sessions/:id/outline", h.UpdateOutline)
+		api.POST("/sessions/:id/outline/lock", h.LockOutline)
+		api.POST("/sessions/:id/skills/generate/section", h.RunGenerateSection)
+		api.POST("/sessions/:id/skills/generate/full", h.RunGenerateFull)
+		api.GET("/sessions/:id/skills/generate/stream", h.GenerateSectionStream)
+		api.GET("/sessions/:id/export", h.ExportDocument)
+		api.GET("/sessions/:id/export/markdown", h.GetMarkdown)
+		api.GET("/skills", h.ListSkills)
+		api.GET("/tasks/:taskId", h.GetTaskStatus)
+		api.GET("/models", h.ListModels)
+		api.POST("/test-key", h.TestApiKey)
+	}
+}
+
+func (h *Handler) CreateSession(c *gin.Context) {
+	var req struct {
+		Title string `json:"title"`
+		BidNo string `json:"bid_no"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	sessionID := uuid.New().String()
+	session := h.sessionStore.CreateSession(sessionID, req.Title, req.BidNo)
+	c.JSON(http.StatusOK, session)
+}
+
+func (h *Handler) GetSession(c *gin.Context) {
+	sessionID := c.Param("id")
+	session, ok := h.sessionStore.GetSession(sessionID)
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
+		return
+	}
+	c.JSON(http.StatusOK, session)
+}
+
+func (h *Handler) UpdateSession(c *gin.Context) {
+	sessionID := c.Param("id")
+	session, ok := h.sessionStore.GetSession(sessionID)
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
+		return
+	}
+	var req model.Session
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	session.Title = req.Title
+	session.BidNo = req.BidNo
+	h.sessionStore.UpdateSession(session)
+	c.JSON(http.StatusOK, session)
+}
+
+func (h *Handler) RunParseSkill(c *gin.Context) {
+	sessionID := c.Param("id")
+	if _, ok := h.sessionStore.GetSession(sessionID); !ok {
+		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
+		return
+	}
+
+	// 双输入:multipart 文件直传,或 JSON {file_path} 服务端本地路径
+	var filename string
+	var fileBytes []byte
+	var filePath string
+	if fh, err := c.FormFile("file"); err == nil {
+		f, err := fh.Open()
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "打开上传文件失败: " + err.Error()})
+			return
+		}
+		defer f.Close()
+		fileBytes, err = io.ReadAll(io.LimitReader(f, 50<<20))
+		if err != nil || len(fileBytes) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "读取上传文件失败或文件为空"})
+			return
+		}
+		filename = fh.Filename
+	} else {
+		var req struct {
+			FilePath string `json:"file_path"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil || req.FilePath == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "请上传 file 文件,或提供 file_path"})
+			return
+		}
+		filePath = req.FilePath
+		filename = filePath
+	}
+
+	taskID := uuid.New().String()
+	h.taskQueue.CreateTask(taskID, sessionID, "parse", "")
+	go func() {
+		h.taskQueue.UpdateStatus(taskID, "running")
+		client := service.NewParseClient(h.config.PythonService)
+		var (
+			output *model.BidParsingOutput
+			err    error
+		)
+		if fileBytes != nil {
+			output, err = client.ParseReader(filename, bytes.NewReader(fileBytes))
+		} else {
+			output, err = client.ParseFile(filePath)
+		}
+		if err != nil {
+			h.taskQueue.UpdateError(taskID, err.Error())
+			return
+		}
+		h.sessionStore.SetParsingOutput(sessionID, output)
+		h.taskQueue.UpdateResult(taskID, map[string]any{"output": output})
+	}()
+	c.JSON(http.StatusOK, gin.H{"task_id": taskID, "status": "started"})
+}
+
+func (h *Handler) RunOutlineSkill(c *gin.Context) {
+	sessionID := c.Param("id")
+	session, ok := h.sessionStore.GetSession(sessionID)
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
+		return
+	}
+	var req struct {
+		Mode      string `json:"mode"`
+		UserInput string `json:"user_input,omitempty"`
+		Provider  string `json:"provider,omitempty"`
+		Model     string `json:"model,omitempty"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	outlineID := uuid.New().String()
+	mode := req.Mode
+	if mode == "" {
+		mode = "auto"
+	}
+	outline := &model.BidOutline{OutlineID: outlineID, SourceMode: mode, Locked: false}
+	if session.ParsingOutput != nil && session.ParsingOutput.Template != nil {
+		for _, sec := range session.ParsingOutput.Template.PresetSections {
+			outline.Sections = append(outline.Sections, &model.Section{
+				SectionID: sec.SectionID, Title: sec.Title, Level: sec.Level,
+				Order: sec.Order, Required: sec.Required, ParentID: sec.ParentID,
+				Source: model.SourceAuto, Status: model.ChapterStatusPending,
+			})
+		}
+	}
+	// 通道B/hybrid 需要走模型
+	if mode == "custom" || mode == "hybrid" {
+		if strings.TrimSpace(req.UserInput) == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "custom/hybrid 模式需要 user_input"})
+			return
+		}
+		hint := ""
+		if session.ParsingOutput != nil && session.ParsingOutput.SourceMeta != nil {
+			hint = session.ParsingOutput.SourceMeta.Title + " " + session.ParsingOutput.SourceMeta.BidNo
+		}
+		var (
+			sections []*model.Section
+			err      error
+		)
+		if mode == "custom" {
+			sections, err = service.BuildCustomOutline(c.Request.Context(), h.gateway, req.Provider, req.Model, req.UserInput, hint)
+		} else {
+			sections, err = service.BuildHybridOutline(c.Request.Context(), h.gateway, req.Provider, req.Model, outline.Sections, req.UserInput)
+		}
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "大纲生成失败: " + err.Error()})
+			return
+		}
+		outline.Sections = sections
+	}
+	// 挂载解析层要求,持久化到会话
+	if session.ParsingOutput != nil {
+		service.MountRequirements(session.ParsingOutput, outline.Sections)
+	}
+	h.sessionStore.SetOutline(sessionID, outline)
+	c.JSON(http.StatusOK, outline)
+}
+
+func (h *Handler) UpdateOutline(c *gin.Context) {
+	sessionID := c.Param("id")
+	session, ok := h.sessionStore.GetSession(sessionID)
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
+		return
+	}
+	var outline model.BidOutline
+	if err := c.ShouldBindJSON(&outline); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	// 按纲约束:锁定后禁删章节,标题非空、id 唯一,新增标 edited
+	if err := service.ValidateOutlineUpdate(session.Outline, &outline); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	h.sessionStore.SetOutline(sessionID, &outline)
+	c.JSON(http.StatusOK, gin.H{"message": "outline updated"})
+}
+
+// LockOutline 锁定大纲:锁定后生成阶段不可改结构,仅可增补子章节
+func (h *Handler) LockOutline(c *gin.Context) {
+	sessionID := c.Param("id")
+	session, ok := h.sessionStore.GetSession(sessionID)
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
+		return
+	}
+	if session.Outline == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请先生成大纲再锁定"})
+		return
+	}
+	session.Outline.Locked = true
+	h.sessionStore.UpdateSession(session)
+	c.JSON(http.StatusOK, gin.H{"message": "outline locked", "outline_id": session.Outline.OutlineID})
+}
+
+func (h *Handler) RunGenerateSection(c *gin.Context) {
+	sessionID := c.Param("id")
+	if _, ok := h.sessionStore.GetSession(sessionID); !ok {
+		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
+		return
+	}
+	var req struct {
+		SectionID string `json:"section_id"`
+		Provider  string `json:"provider"`
+		Model     string `json:"model"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	taskID := uuid.New().String()
+	h.taskQueue.CreateTask(taskID, sessionID, "generate_section", req.SectionID)
+	go func() {
+		h.taskQueue.UpdateStatus(taskID, "running")
+		h.taskQueue.UpdateProgress(taskID, 10)
+		messages := []map[string]string{
+			{"role": "system", "content": "你是一个专业的标书编写助手。请根据大纲章节要求，撰写专业、完整的标书内容。"},
+			{"role": "user", "content": fmt.Sprintf("请撰写章节：%s", req.SectionID)},
+		}
+		content, err := h.gateway.Chat(c.Request.Context(), req.Provider, messages, req.Model)
+		if err != nil {
+			h.taskQueue.UpdateError(taskID, err.Error())
+			return
+		}
+		h.taskQueue.UpdateProgress(taskID, 90)
+		h.sessionStore.UpdateSectionContent(sessionID, req.SectionID, content)
+		h.taskQueue.UpdateProgress(taskID, 100)
+		h.taskQueue.UpdateResult(taskID, map[string]any{"content": content})
+	}()
+	c.JSON(http.StatusOK, gin.H{"task_id": taskID, "status": "started"})
+}
+
+func (h *Handler) RunGenerateFull(c *gin.Context) {
+	sessionID := c.Param("id")
+	if _, ok := h.sessionStore.GetSession(sessionID); !ok {
+		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
+		return
+	}
+	var req struct {
+		Provider string `json:"provider"`
+		Model    string `json:"model"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	taskID := uuid.New().String()
+	h.taskQueue.CreateTask(taskID, sessionID, "generate_full", "")
+	go func() {
+		h.taskQueue.UpdateStatus(taskID, "running")
+		h.taskQueue.UpdateResult(taskID, map[string]any{"message": "Full generation started"})
+	}()
+	c.JSON(http.StatusOK, gin.H{"task_id": taskID, "status": "started"})
+}
+
+func (h *Handler) GenerateSectionStream(c *gin.Context) {
+	c.Param("id")
+	sectionID := c.Query("section_id")
+	provider := c.Query("provider")
+	modelName := c.Query("model")
+	if sectionID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "section_id is required"})
+		return
+	}
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	fmt.Fprintf(c.Writer, "event: start\ndata: %s\n\n", jsonStr(gin.H{"section_id": sectionID}))
+	messages := []map[string]string{
+		{"role": "system", "content": "你是一个专业的标书编写助手。请根据大纲章节要求，撰写专业、完整的标书内容。"},
+		{"role": "user", "content": fmt.Sprintf("请撰写章节：%s", sectionID)},
+	}
+	err := h.gateway.ChatStream(c.Request.Context(), provider, messages, modelName, func(chunk string) {
+		fmt.Fprintf(c.Writer, "event: chunk\ndata: %s\n\n", jsonStr(gin.H{"chunk": chunk, "section_id": sectionID}))
+		c.Writer.Flush()
+	})
+	if err != nil {
+		fmt.Fprintf(c.Writer, "event: error\ndata: %s\n\n", jsonStr(gin.H{"error": err.Error()}))
+		return
+	}
+	fmt.Fprintf(c.Writer, "event: done\ndata: %s\n\n", jsonStr(gin.H{"section_id": sectionID}))
+}
+
+func (h *Handler) ExportDocument(c *gin.Context) {
+	sessionID := c.Param("id")
+	session, ok := h.sessionStore.GetSession(sessionID)
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
+		return
+	}
+
+	// 内容层:优先用大纲章节(含生成正文),否则从 Markdown 按标题切分
+	sections := outlineExportSections(session)
+	if len(sections) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "没有可导出的章节内容(请先生成大纲/正文)"})
+		return
+	}
+	payload := map[string]any{
+		"title":    session.Title,
+		"bid_no":   session.BidNo,
+		"sections": sections,
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	resp, err := http.Post(h.config.PythonService+"/export", "application/json", bytes.NewReader(body))
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "导出服务不可用: " + err.Error()})
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+		c.JSON(http.StatusBadGateway, gin.H{"error": fmt.Sprintf("导出失败: %s", string(raw))})
+		return
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 50<<20))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s.docx", sessionID))
+	c.Data(http.StatusOK, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", data)
+}
+
+// outlineExportSections 把会话大纲展平为导出行;正文缺失时回退解析 Markdown
+func outlineExportSections(session *model.Session) []map[string]any {
+	var sections []map[string]any
+	if session.Outline != nil {
+		for _, s := range session.Outline.Sections {
+			sections = append(sections, map[string]any{
+				"title":   s.Title,
+				"content": s.Content,
+				"level":   s.Level,
+			})
+		}
+	}
+	hasContent := false
+	for _, s := range sections {
+		if strings.TrimSpace(s["content"].(string)) != "" {
+			hasContent = true
+			break
+		}
+	}
+	if hasContent {
+		return sections
+	}
+	return splitMarkdownSections(session.Markdown)
+}
+
+// splitMarkdownSections 按 # 标题把 Markdown 切为章节
+func splitMarkdownSections(md string) []map[string]any {
+	var sections []map[string]any
+	var cur map[string]any
+	var buf strings.Builder
+	flush := func() {
+		if cur != nil {
+			cur["content"] = strings.TrimSpace(buf.String())
+			sections = append(sections, cur)
+		}
+		buf.Reset()
+	}
+	for _, line := range strings.Split(md, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "#") {
+			level := 0
+			for level < len(trimmed) && trimmed[level] == '#' {
+				level++
+			}
+			if level > 6 {
+				level = 6
+			}
+			title := strings.TrimSpace(trimmed[level:])
+			if title != "" {
+				flush()
+				cur = map[string]any{"title": title, "content": "", "level": level}
+				continue
+			}
+		}
+		if cur != nil {
+			buf.WriteString(line + "\n")
+		}
+	}
+	flush()
+	return sections
+}
+
+func (h *Handler) GetMarkdown(c *gin.Context) {
+	sessionID := c.Param("id")
+	session, ok := h.sessionStore.GetSession(sessionID)
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"markdown": session.Markdown})
+}
+
+func (h *Handler) ListSkills(c *gin.Context) {
+	skills := []map[string]string{
+		{"name": "parse", "description": "解析招标文件，提取模板、技术指标、商务要求、评分点、废标条款"},
+		{"name": "outline", "description": "根据招标文件或用户输入生成标书大纲"},
+		{"name": "generate", "description": "按大纲章节生成标书内容"},
+		{"name": "export", "description": "将Markdown内容导出为Word文档"},
+		{"name": "rag", "description": "从企业知识库检索相关素材"},
+	}
+	c.JSON(http.StatusOK, gin.H{"skills": skills})
+}
+
+func (h *Handler) GetTaskStatus(c *gin.Context) {
+	taskID := c.Param("taskId")
+	task, ok := h.taskQueue.GetTask(taskID)
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{"error": "task not found"})
+		return
+	}
+	c.JSON(http.StatusOK, task)
+}
+
+func (h *Handler) ListModels(c *gin.Context) {
+	models := h.gateway.ListModels()
+	c.JSON(http.StatusOK, gin.H{"models": models})
+}
+
+func (h *Handler) TestApiKey(c *gin.Context) {
+	var req struct {
+		Provider string `json:"provider"`
+		Model    string `json:"model"`
+		Key      string `json:"key"`
+		Endpoint string `json:"endpoint"`
+		Format   string `json:"format"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	available, errMsg := h.gateway.TestProvider(req.Provider, req.Key, req.Model, req.Endpoint, req.Format)
+	c.JSON(http.StatusOK, gin.H{"available": available, "error": errMsg})
+}
+
+func buildMarkdownFromOutline(outline *model.BidOutline) string {
+	var md strings.Builder
+	for _, section := range outline.Sections {
+		indent := strings.Repeat("#", section.Level)
+		md.WriteString(indent + " " + section.Title + "\n\n")
+	}
+	return md.String()
+}
+
+func strPtr(s string) *string { return &s }
+func floatPtr(f float64) *float64 { return &f }
+func jsonStr(v any) string { b, _ := json.Marshal(v); return string(b) }
+
+func toServiceProviders(cfgs []config.LLMProviderConfig) []service.LLMProviderConfig {
+	result := make([]service.LLMProviderConfig, len(cfgs))
+	for i, c := range cfgs {
+		result[i] = service.LLMProviderConfig{
+			Name: c.Name, APIKey: c.APIKey, BaseURL: c.BaseURL,
+			ModelName: c.ModelName, Type: c.Type,
+		}
+	}
+	return result
+}
