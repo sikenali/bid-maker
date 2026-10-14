@@ -21,6 +21,15 @@ const MAX_BYTES = 50 * 1024 * 1024;
 const app = express();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_BYTES } });
 
+// 最小请求日志:方法 路径 状态 underlying 耗时,无第三方依赖
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    console.log(`${new Date().toISOString()} ${req.method} ${req.path} ${res.statusCode} ${Date.now() - start}ms`);
+  });
+  next();
+});
+
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'bid-parse-service', schema: 'v1', engine: 'node-officeparser' });
 });

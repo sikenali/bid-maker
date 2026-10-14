@@ -681,13 +681,23 @@ async function syncWordMode() {
   }
 }
 
-// Word 模式编辑内容回写 markdown（防抖保存）
+// Word 模式编辑内容回写 markdown(保留标题层级,防抖保存);
+// 程序化加载(syncWordMode)期间跳过,避免回环覆盖
 function handleWordChange(_doc: any) {
+  if (wordDocLoading.value) return
   try {
-    const text = serializeDocumentBody(_doc.package.document)
-    // 提取 <w:t>text</w:t> 内容，保留段落结构
-    const lines = text.match(/<w:t[^>]*>([^<]*)<\/w:t>/g) || []
-    const mdContent = lines.map(l => l.replace(/<\/?w:t[^>]*>/g, '')).join('\n')
+    const xml: string = serializeDocumentBody(_doc.package.document)
+    const unesc = (s: string) => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&')
+    const paras = xml.match(/<w:p[\s>][\s\S]*?<\/w:p>/g) || []
+    const lines: string[] = []
+    for (const p of paras) {
+      const style = /<w:pStyle[^>]*w:val="([^"]+)"/.exec(p)?.[1] || 'Normal'
+      const text = [...p.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map((m) => unesc(m[1])).join('').trim()
+      if (!text) continue
+      const prefix = style === 'Heading1' ? '# ' : style === 'Heading2' ? '## ' : style === 'Heading3' ? '### ' : ''
+      lines.push(prefix + text)
+    }
+    const mdContent = lines.join('\n\n')
     if (mdContent && mdContent !== markdown.value) {
       markdown.value = mdContent
       scheduleSave()

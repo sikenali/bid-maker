@@ -355,8 +355,7 @@ func (h *Handler) RunGenerateFull(c *gin.Context) {
 			completed++
 			progress := int(float64(completed) / float64(total) * 100)
 			h.taskQueue.UpdateProgress(taskID, progress)
-			fmt.Fprintf(c.Writer, "event: chunk\ndata: %s\n\n", jsonStr(gin.H{"section_id": sec.SectionID, "chunk": content, "title": sec.Title, "progress": progress}))
-			c.Writer.Flush()
+			// 注:实时推送走 GenerateFullStream;此处直接写 c.Writer 已无连接,不再推送
 		}
 		result := map[string]any{"completed": completed, "total": total}
 		if errMsg != "" {
@@ -368,19 +367,25 @@ func (h *Handler) RunGenerateFull(c *gin.Context) {
 }
 
 func flattenSections(sections []*model.Section) []*model.Section {
-	var result []*model.Section
+	byID := make(map[string]*model.Section, len(sections))
 	for _, s := range sections {
-		result = append(result, s)
-		if s.Children != nil {
-			for _, childID := range s.Children {
-				for _, child := range sections {
-					if child.SectionID == childID {
-						result = append(result, child)
-						break
-					}
-				}
-			}
+		byID[s.SectionID] = s
+	}
+	var result []*model.Section
+	visited := make(map[string]bool)
+	var visit func(s *model.Section)
+	visit = func(s *model.Section) {
+		if s == nil || visited[s.SectionID] {
+			return
 		}
+		visited[s.SectionID] = true
+		result = append(result, s)
+		for _, cid := range s.Children {
+			visit(byID[cid])
+		}
+	}
+	for _, s := range sections {
+		visit(s)
 	}
 	return result
 }

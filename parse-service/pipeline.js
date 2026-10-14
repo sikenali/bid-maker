@@ -124,7 +124,8 @@ function extractIndicators(elements) {
   let n = 0;
   elements.paragraphs.forEach((p, idx) => {
     const t = p.text;
-    if (t.length > 200) return;
+    // 表格行是多列join结果,天然偏长,豁免长度门(否则宽表整行指标丢失)
+    if (t.length > 200 && p.table_idx < 0) return;
     if (includesAny(t, ALL_COMMERCIAL_KW)) return; // 商务句不重复计入
     const m = NUM_UNIT_RE.exec(t);
     const mx = MAX_UNIT_RE.exec(t);
@@ -162,7 +163,7 @@ function extractCommercial(elements) {
     if (p.heading_level === 1 || p.heading_level === 2) return;
     for (const [cat, kws] of Object.entries(COMMERCIAL_CATS)) {
       if (!includesAny(t, kws)) continue;
-      if (t.length < 6 || t.length > 300) continue;
+      if (t.length < 6 || (t.length > 300 && p.table_idx < 0)) continue;
       n += 1;
       const docs = [...t.matchAll(/《([^》]{2,30})》/g)].map((m) => m[1]);
       for (const k of DOC_KW) {
@@ -229,8 +230,9 @@ function extractDisqualify(elements) {
   elements.paragraphs.forEach((p, idx) => {
     const t = p.text;
     const isStarred = t.includes('★') || t.includes('▲');
-    // 带 ★▲ 标记的行豁免最小长度检查(短强制条款如"★必须盖章"不应丢弃)
-    if ((!isStarred && t.length < 8) || t.length > 400) return;
+    // 带 ★▲ 标记的行豁免最小长度检查(短强制条款如"★必须盖章"不应丢弃);
+    // 表格行豁免长度门
+    if ((!isStarred && t.length < 8) || (t.length > 400 && p.table_idx < 0)) return;
     const hitDq = includesAny(t, DISQUALIFY_KW);
     // 仅多字词，避免单字"应/须"误伤"响应/须知"等正常词
     const hitStar = isStarred && ['实质性', '必须', '应当', '应该', '要求', '否则', '不得'].some((k) => t.includes(k));
