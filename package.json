@@ -6,9 +6,11 @@
     "dev:frontend": "npm --prefix frontend run dev"
   },
   "dependencies": {
-    "@remixicon/vue": "^4.9.0"
+    "@remixicon/vue": "^4.9.0",
+    "jszip-utils": "^0.1.0"
   },
   "devDependencies": {
+    "@types/file-saver": "^2.0.7",
     "concurrently": "^10.0.6",
     "wait-on": "^9.5.1"
   }

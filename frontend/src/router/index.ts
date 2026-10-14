@@ -11,7 +11,6 @@ const router = createRouter({
     { path: '/settings/skill', component: () => import('@/views/settings/SkillSettingsView.vue') },
     { path: '/settings/api-key', component: () => import('@/views/settings/ApiKeySettingsView.vue') },
     { path: '/settings/export', component: () => import('@/views/settings/ExportSettingsView.vue') },
-    { path: '/settings/profile', component: () => import('@/views/settings/ProfileSettingsView.vue') },
     { path: '/settings/about', component: () => import('@/views/settings/AboutSettingsView.vue') },
   ],
 });

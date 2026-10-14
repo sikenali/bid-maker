@@ -29,7 +29,7 @@ export const useGenerateStore = defineStore('generate', () => {
   const totalSections = computed(() => {
     let count = 0
     const countRecursive = (secs: OutlineSection[]) => {
-      for (const s of secs) { count++; if (s.children) countRecursive(s.children as OutlineSection[]) }
+      for (const s of secs) { count++; if ((s as any).children) countRecursive((s as any).children as OutlineSection[]) }
     }
     countRecursive(outline.value)
     return count
@@ -80,14 +80,14 @@ export const useGenerateStore = defineStore('generate', () => {
     const initRecursive = (secs: OutlineSection[]) => {
       for (const s of secs) {
         states.set(s.section_id, 'pending')
-        if (s.children) initRecursive(s.children as OutlineSection[])
+        if ((s as any).children) initRecursive((s as any).children as OutlineSection[])
       }
     }
     initRecursive(outline.value)
     sectionStates.value = states
   }
 
-  async function generateSection(sectionId: string, section: OutlineSection, _sectionPath: string[], outlineContext: OutlineSection[]) {
+  async function generateSection(sectionId: string, _section: OutlineSection, _sectionPath: string[], _outlineContext: OutlineSection[]) {
     if (!modelConfig.value || !sessionId.value) { error.value = 'no model config'; return }
 
     sectionStates.value.set(sectionId, 'generating')

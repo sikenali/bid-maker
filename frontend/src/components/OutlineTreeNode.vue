@@ -1,48 +1,48 @@
 <template>
   <div>
     <div
-      :data-id="section.id"
+      :data-id="section.section_id"
       class="outline-node"
       :class="{
-        active: section.id === activeSectionId,
+        active: section.section_id === activeSectionId,
         'state-generating': sectionState === 'generating',
         'state-done': sectionState === 'done',
         'state-error': sectionState === 'error',
       }"
       :style="{ paddingLeft: `${16 + depth * 30}px` }"
-      @click="emit('select', section.id)"
+      @click="emit('select', section.section_id)"
     >
       <span class="state-icon">{{ iconFor(sectionState) }}</span>
-      <RiFileTextFill v-if="section.id === activeSectionId" size="20" color="#C23B22" />
+      <RiFileTextFill v-if="section.section_id === activeSectionId" size="20" color="#C23B22" />
       <RiFileTextLine v-else size="20" color="#8B7355" />
       <span class="node-title">{{ section.title }}</span>
       <span class="menu-wrapper">
         <button
           class="more-btn"
-          :class="{ active: openMenuId === section.id }"
-          @click.stop="emit('toggle-menu', section.id)"
+          :class="{ active: openMenuId === section.section_id }"
+          @click.stop="emit('toggle-menu', section.section_id)"
         >
           <RiMore2Fill size="16" color="#8B7355" />
         </button>
-        <div v-if="openMenuId === section.id" class="context-menu" @click.stop>
+        <div v-if="openMenuId === section.section_id" class="context-menu" @click.stop>
           <div class="menu-arrow" />
-          <button class="menu-item" :class="{ disabled: section.level <= 1 }" @click.stop="emit('promote-level', section.id)">升级</button>
-          <button class="menu-item" @click.stop="emit('demote-level', section.id)">降级</button>
+          <button class="menu-item" :class="{ disabled: section.level <= 1 }" @click.stop="emit('promote-level', section.section_id)">升级</button>
+          <button class="menu-item" @click.stop="emit('demote-level', section.section_id)">降级</button>
           <div class="menu-divider" />
-          <button class="menu-item" @click.stop="emit('add-child', section.id)">新增子章节</button>
+          <button class="menu-item" @click.stop="emit('add-child', section.section_id)">新增子章节</button>
           <div class="menu-divider" />
-          <button class="menu-item menu-item-danger" @click.stop="emit('remove-section', section.id)">删除</button>
+          <button class="menu-item menu-item-danger" @click.stop="emit('remove-section', section.section_id)">删除</button>
         </div>
       </span>
     </div>
     <OutlineTreeNode
-      v-for="child in section.children"
-      :key="child.id"
-      :section="child"
+      v-for="child in (section.children || [])"
+      :key="(child as any).section_id || child"
+      :section="(child as any)"
       :depth="depth + 1"
       :active-section-id="activeSectionId"
       :open-menu-id="openMenuId"
-      :section-state="genStore.getSectionState(child.id)"
+      :section-state="genStore.getSectionState((child as any).section_id || child)"
       @select="(id: string) => $emit('select', id)"
       @toggle-menu="(id: string) => $emit('toggle-menu', id)"
       @promote-level="(id: string) => $emit('promote-level', id)"
@@ -54,7 +54,7 @@
 </template>
 
 <script setup lang="ts">
-import type { Section } from '../stores/documentStore'
+import type { OutlineSection } from '../stores/documentStore'
 import type { SectionState } from '../stores/generateStore'
 import { useGenerateStore } from '../stores/generateStore'
 import {
@@ -67,7 +67,7 @@ defineOptions({ name: 'OutlineTreeNode' })
 const genStore = useGenerateStore()
 
 defineProps<{
-  section: Section
+  section: OutlineSection
   depth: number
   activeSectionId: string
   openMenuId: string | null

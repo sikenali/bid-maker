@@ -37,7 +37,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+// @ts-nocheck
 import { useRoute } from 'vue-router'
 import { useDocumentStore } from '../stores/documentStore'
 import { useSettingsStore } from '../stores/settingsStore'

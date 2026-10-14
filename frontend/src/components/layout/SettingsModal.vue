@@ -49,7 +49,6 @@ import TemplateSettingsView from '@/views/settings/TemplateSettingsView.vue';
 import SkillSettingsView from '@/views/settings/SkillSettingsView.vue';
 import ApiKeySettingsView from '@/views/settings/ApiKeySettingsView.vue';
 import ExportSettingsView from '@/views/settings/ExportSettingsView.vue';
-import ProfileSettingsView from '@/views/settings/ProfileSettingsView.vue';
 import AboutSettingsView from '@/views/settings/AboutSettingsView.vue';
 import { riToCompName } from '@/utils/icon';
 

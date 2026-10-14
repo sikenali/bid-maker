@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { OpenFileViewer } from '@open-file-viewer/vue'
 import { imagePlugin, officePlugin, pdfPlugin, textPlugin } from '@open-file-viewer/core'
 import '@open-file-viewer/core/style.css'
-import pdfjsLib from 'pdfjs-dist/build/pdf.mjs'
 import pdfWorkerSrc from 'pdfjs-dist/build/pdf.worker.mjs?url'
 
 const props = defineProps<{

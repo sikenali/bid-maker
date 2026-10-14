@@ -13,6 +13,7 @@ interface Step {
   label: string;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const props = withDefaults(defineProps<{
   steps?: Step[];
   title?: string;

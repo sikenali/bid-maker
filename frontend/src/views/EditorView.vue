@@ -16,8 +16,10 @@ import TopNav from '@/components/layout/TopNav.vue'
 import { useChatStore } from '../stores/chatStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { DocxEditor, createEmptyDocument } from '@eigenpal/docx-editor-vue'
+import { markdownToDocx } from '@/utils/markdownDocx'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
+// eslint-disable-next-line @typescript-eslint/no-unused-vars,unused-imports/no-unused-imports
 import { marked } from 'marked'
 import TurndownService from 'turndown'
 import {
@@ -34,12 +36,11 @@ import {
   RiPlayCircleLine,
   RiArrowDropRightLine,
   RiArrowDropDownLine,
-  RiFileListLine,
-  RiCommandLine,
 } from '@remixicon/vue'
 
 const props = defineProps<{ id: string }>()
-const router = useRouter()
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _router = useRouter()
 const chatStore = useChatStore()
 const settingsStore = useSettingsStore()
 
@@ -87,7 +88,9 @@ const filteredSkills = computed(() => {
 
 // Editor refs
 const docxEditorRef = ref<InstanceType<typeof DocxEditor> | null>(null)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const mdEditorRef = ref<any>(null)
+const wordDocLoading = ref(false)
 
 // turndown service for converting HTML to markdown
 const turndownService = new TurndownService({
@@ -151,18 +154,24 @@ onMounted(async () => {
         if (mdEditor.value) {
           mdEditor.value.commands.setContent(res.data.markdown)
         }
+        if (editorMode.value === 'word' && docxEditorRef.value) {
+          syncWordMode()
+        }
       })
-    } else {
-      try {
-        const md = await getMarkdown(props.id)
-        markdown.value = md.data.markdown || ''
-        nextTick(() => {
-          if (mdEditor.value) {
-            mdEditor.value.commands.setContent(markdown.value)
-          }
-        })
-      } catch {}
-    }
+      } else {
+        try {
+          const md = await getMarkdown(props.id)
+          markdown.value = md.data.markdown || ''
+          nextTick(() => {
+            if (mdEditor.value) {
+              mdEditor.value.commands.setContent(markdown.value)
+            }
+            if (editorMode.value === 'word' && docxEditorRef.value) {
+              syncWordMode()
+            }
+          })
+        } catch {}
+      }
     settingsStore.fetchModels()
     // Load templates
     const tplRes = getTemplateList()
@@ -191,6 +200,9 @@ watch(() => editorMode.value, (mode) => {
     nextTick(() => {
       mdEditor.value?.commands.setContent(markdown.value)
     })
+  }
+  if (mode === 'word' && markdown.value) {
+    nextTick(() => syncWordMode())
   }
 })
 
@@ -274,7 +286,7 @@ function selectSkill(skill: any) {
   skillPopupOpen.value = false
   // Focus back to input
   nextTick(() => {
-    document.querySelector('.chat-input')?.focus()
+    (document.querySelector('.chat-input') as HTMLElement | null)?.focus()
   })
 }
 
@@ -422,9 +434,11 @@ async function handleGenerateSection(sectionId: string) {
             const buffer = (sectionBuffers.get(sectionId) || '') + data.chunk
             sectionBuffers.set(sectionId, buffer)
             markdown.value = setSectionMarkdownContent(markdown.value || '', section.title, section.level, buffer)
-            // Update tiptap editor if in markdown mode
             if (editorMode.value === 'markdown' && mdEditor.value) {
               mdEditor.value.commands.setContent(markdown.value)
+            }
+            if (editorMode.value === 'word' && docxEditorRef.value) {
+              syncWordMode()
             }
             generationProgress.value = Math.min(95, generationProgress.value + 2)
           }
@@ -434,7 +448,6 @@ async function handleGenerateSection(sectionId: string) {
           sectionBuffers.delete(sectionId)
           isGenerating.value = false
           generationProgress.value = 0
-          window.dispatchEvent(new CustomEvent('gen-done', { detail: { sectionId } }))
         }
       } catch {}
     }
@@ -482,6 +495,9 @@ function handleGenChunk(e: CustomEvent) {
   if (editorMode.value === 'markdown' && mdEditor.value) {
     mdEditor.value.commands.setContent(markdown.value)
   }
+  if (editorMode.value === 'word' && docxEditorRef.value) {
+    syncWordMode()
+  }
   generationProgress.value = Math.min(95, generationProgress.value + 1)
 }
 
@@ -493,6 +509,9 @@ function handleGenDone(e: CustomEvent) {
     markdown.value = setSectionMarkdownContent(markdown.value || '', section.title, section.level, buffer)
     if (editorMode.value === 'markdown' && mdEditor.value) {
       mdEditor.value.commands.setContent(markdown.value)
+    }
+    if (editorMode.value === 'word' && docxEditorRef.value) {
+      syncWordMode()
     }
   }
   sectionBuffers.delete(sectionId)
@@ -581,9 +600,17 @@ function setSectionMarkdownContent(md: string, title: string, level: number, con
 }
 
 // ── DocxEditor handlers ────────────────────────────────────────────
-async function handleDocxReady() {
-  // When DocxEditor is ready, we can interact with it
-  console.log('DocxEditor ready')
+async function syncWordMode() {
+  if (!markdown.value || !docxEditorRef.value) return
+  wordDocLoading.value = true
+  try {
+    const buf = await markdownToDocx(markdown.value)
+    await docxEditorRef.value.loadDocumentBuffer(buf)
+  } catch (e) {
+    console.error('Word mode sync failed:', e)
+  } finally {
+    wordDocLoading.value = false
+  }
 }
 
 function handleModeSwitch(mode: 'word' | 'markdown') {
@@ -591,6 +618,7 @@ function handleModeSwitch(mode: 'word' | 'markdown') {
 }
 
 // ── Recursive Outline Node ─────────────────────────────────────────
+// @ts-ignore
 const OutlineNodeRecursive = defineComponent({
   name: 'OutlineNodeRecursive',
   props: {
@@ -600,8 +628,9 @@ const OutlineNodeRecursive = defineComponent({
     expanded: { type: Object, default: () => ({}) },
   },
   emits: ['select', 'toggle', 'delete', 'generate'],
-  setup(props, { emit }) {
-    return () =>
+  setup(props: any, { emit }: any) {
+    // @ts-ignore
+    return (): any =>
       props.sections.map((s: any) => {
         const isExpanded = !!props.expanded[s.section_id]
         const hasChildren = s.children && s.children.length > 0
@@ -624,7 +653,7 @@ const OutlineNodeRecursive = defineComponent({
                         class: 'expand-btn',
                         onClick: (e: MouseEvent) => { e.stopPropagation(); emit('toggle', s.section_id) },
                       },
-                      [h(isExpanded ? RiArrowDropDownLine : RiArrowDropRightLine, { size: 14 })],
+                      [h(isExpanded ? RiArrowDropDownLine : RiArrowDropRightLine, { size: '14' })],
                     )
                   : h('span', { class: 'expand-spacer' }),
                 h('span', { class: 'node-title' }, s.title),
@@ -635,17 +664,17 @@ const OutlineNodeRecursive = defineComponent({
                     h(
                       'button',
                       { class: 'action-btn', title: '生成', onClick: (e: MouseEvent) => { e.stopPropagation(); emit('generate', s.section_id) } },
-                      [h(RiPlayCircleLine, { size: 14 })],
+                      [h(RiPlayCircleLine, { size: '14' })],
                     ),
                     h(
                       'button',
                       { class: 'action-btn', title: '编辑', onClick: (e: MouseEvent) => { e.stopPropagation(); emit('select', s.section_id) } },
-                      [h(RiEditLine, { size: 14 })],
+                      [h(RiEditLine, { size: '14' })],
                     ),
                     h(
                       'button',
                       { class: 'action-btn action-btn-danger', title: '删除', onClick: (e: MouseEvent) => { e.stopPropagation(); emit('delete', s.section_id) } },
-                      [h(RiDeleteBinLine, { size: 14 })],
+                      [h(RiDeleteBinLine, { size: '14' })],
                     ),
                   ],
                 ),
@@ -754,17 +783,21 @@ const OutlineNodeRecursive = defineComponent({
       <div class="editor-scroll">
         <div class="doc-card">
           <!-- Word Mode: DocxEditor -->
-          <DocxEditor
-            v-if="editorMode === 'word'"
-            ref="docxEditorRef"
-            :document="createEmptyDocument()"
-            :show-toolbar="true"
-            :show-menu-bar="true"
-            :show-ruler="true"
-            document-name="标书文档"
-            mode="editing"
-            class="docx-editor-wrap"
-          />
+          <div v-if="editorMode === 'word'" class="docx-editor-wrap">
+            <DocxEditor
+              ref="docxEditorRef"
+              :document="createEmptyDocument()"
+              :show-toolbar="true"
+              :show-menu-bar="true"
+              :show-ruler="true"
+              document-name="标书文档"
+              mode="editing"
+            />
+            <div v-if="wordDocLoading" class="word-sync-badge">
+              <RiLoader4Line size="14" class="spin-icon" />
+              正在加载 Word 内容...
+            </div>
+          </div>
 
           <!-- Markdown Mode: Tiptap Editor -->
           <div v-else class="md-editor-wrap">
@@ -1341,6 +1374,24 @@ const OutlineNodeRecursive = defineComponent({
 .docx-editor-wrap {
   flex: 1;
   overflow: auto;
+  position: relative;
+}
+
+.word-sync-badge {
+  position: absolute;
+  bottom: 16px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 14px;
+  background: var(--color-primary-soft, #fbe9e7);
+  color: var(--color-primary, #c0392b);
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  z-index: 10;
 }
 
 .md-editor-wrap {

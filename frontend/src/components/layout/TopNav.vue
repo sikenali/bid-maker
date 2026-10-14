@@ -5,7 +5,8 @@ import SettingsModal from '@/components/layout/SettingsModal.vue';
 import { UiTip } from '@/components/ui';
 import { BRAND_NAME } from '@/constants/brand';
 
-const props = withDefaults(defineProps<{
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _props = withDefaults(defineProps<{
   title?: string;
   brand?: string;
   showBack?: boolean;

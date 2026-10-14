@@ -1,13 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { ElMessage } from '@/utils/toast';
-import { useRouter } from 'vue-router';
 import { useThemeStore } from '@/stores/theme';
 import { UiCheck } from '@/components/ui';
 import { setTheme as saveTheme } from '@/api/settings';
 
 const themeStore = useThemeStore();
-const router = useRouter();
 
 interface ThemeOption {
   type: string;

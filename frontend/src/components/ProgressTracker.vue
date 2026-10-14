@@ -8,10 +8,10 @@
       <div class="progress-fill" :style="{ width: genStore.progressPercent + '%' }" />
     </div>
     <div class="section-states">
-      <div v-for="sec in flatSections" :key="sec.id" class="state-row" :class="genStore.getSectionState(sec.id)">
-        <span class="state-icon">{{ iconFor(genStore.getSectionState(sec.id)) }}</span>
+      <div v-for="sec in flatSections" :key="sec.section_id" class="state-row" :class="genStore.getSectionState(sec.section_id)">
+        <span class="state-icon">{{ iconFor(genStore.getSectionState(sec.section_id)) }}</span>
         <span class="state-title" :style="{ paddingLeft: (sec._level || 0) * 16 + 'px' }">{{ sec.title }}</span>
-        <button v-if="genStore.getSectionState(sec.id) === 'error'" class="retry-btn" @click="genStore.retrySection(sec.id)">重试</button>
+        <button v-if="genStore.getSectionState(sec.section_id) === 'error'" class="retry-btn" @click="genStore.retrySection(sec.section_id)">重试</button>
       </div>
     </div>
   </div>
@@ -19,17 +19,17 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useGenerateStore } from '../stores/generateStore'
-import type { Section } from '../api/client'
+import type { OutlineSection } from '../api/client'
 import type { SectionState } from '../stores/generateStore'
 
-type FlatSection = Section & { _level?: number }
+type FlatSection = OutlineSection & { _level?: number }
 
 const genStore = useGenerateStore()
 
 const flatSections = computed(() => {
   const flat: FlatSection[] = []
-  const flatten = (secs: Section[], level: number) => {
-    for (const s of secs) { flat.push({ ...s, _level: level }); flatten(s.children, level + 1) }
+  const flatten = (secs: any[], level: number) => {
+    for (const s of secs) { flat.push({ ...s, _level: level }); flatten((s.children || []) as any[], level + 1) }
   }
   flatten(genStore.outline, 0)
   return flat

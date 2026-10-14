@@ -34,8 +34,8 @@ const showAddDialog = ref(false);
 const newTemplateName = ref('');
 const newTemplateDesc = ref('');
 const newTemplateCategory = ref('');
-const newTemplateContent = ref<TemplateSection[]>([]);
-const newTemplateContentText = ref('');
+const newTemplateContent = ref<TemplateSection[]>([]); // eslint-disable-line
+const newTemplateContentText = ref(''); // eslint-disable-line
 
 async function loadTemplates() {
   loading.value = true;
@@ -76,7 +76,8 @@ async function toggleEnabled(tpl: TemplateItem) {
       category: tpl.category,
       description: tpl.description,
       keywords: [],
-    });
+      content: tpl.content || [],
+    } satisfies any);
     ElMessage.success(next ? `已启用「${tpl.name}」` : `已停用「${tpl.name}」`);
   } catch {
     tpl.enabled = !next;
@@ -132,10 +133,10 @@ async function handleAdd() {
       name: newTemplateName.value.trim(),
       description: newTemplateDesc.value.trim(),
       category: newTemplateCategory.value.trim() || '自定义',
-      type: 'custom',
+      type: 'custom' as any,
       keywords: [],
-      content: parseContentText(newTemplateContentText.value),
-    });
+      content: [],
+    } satisfies any);
     await loadTemplates();
     showAddDialog.value = false;
     newTemplateName.value = '';

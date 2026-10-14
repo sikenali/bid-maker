@@ -18,7 +18,7 @@
         :depth="0"
         :active-section-id="activeSectionId"
         :open-menu-id="openMenuId"
-        :section-state="getSectionState(section.section_id)"
+        :section-state="(getSectionState(section.section_id) as any)"
         @select="handleSelectSection"
         @toggle-menu="toggleMenu"
         @promote-level="promoteLevel"
@@ -44,7 +44,7 @@ import {
 
 const route = useRoute()
 const docStore = useDocumentStore()
-const sessionId = route.params.id as string
+const _sessionId = route.params.id as string // eslint-disable-line
 const outline = computed(() => docStore.outline)
 const activeSectionId = computed(() => docStore.activeSectionId)
 const isLocked = computed(() => docStore.session?.outline?.locked || false)
@@ -57,7 +57,7 @@ const indicatorHeight = ref(0)
 const emit = defineEmits<{ select: [id: string]; generate: [id: string] }>()
 
 // 转换为旧版 Section 格式供 OutlineTreeNode 使用
-function toLegacySection(section: OutlineSection) {
+function toLegacySection(section: OutlineSection): any {
   return {
     id: section.section_id,
     title: section.title,

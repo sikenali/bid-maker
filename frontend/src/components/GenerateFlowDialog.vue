@@ -8,8 +8,8 @@
       <div class="dialog-body">
         <p class="dialog-query">"{{ genStore.userMessage }}"</p>
         <div class="outline-preview">
-          <div v-for="sec in genStore.outline" :key="sec.id" class="preview-node">
-            <PreviewNode :section="sec" :depth="0" />
+          <div v-for="sec in genStore.outline" :key="sec.section_id" class="preview-node">
+            <PreviewNode :section="sec as any" :depth="0" />
           </div>
         </div>
       </div>

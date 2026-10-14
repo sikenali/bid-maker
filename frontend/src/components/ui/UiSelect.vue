@@ -60,7 +60,8 @@ function toggle() {
   if (props.disabled) return;
   open.value = !open.value;
 }
-function close() { open.value = false; }
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function _close() { open.value = false; }
 function pick(o: UiSelectOption) {
   if (o.disabled) return;
   emit('update:modelValue', o.value);

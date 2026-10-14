@@ -67,7 +67,8 @@ function onConfirm() {
   if (props.confirmDisabled || props.confirmLoading) return;
   emit('confirm');
 }
-function onKey(ev: KeyboardEvent) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function _onKey(ev: KeyboardEvent) {
   if (ev.key === 'Escape' && props.modelValue && props.closeOnEsc) close();
 }
 // body 滚动锁定（多弹框嵌套时以计数方式处理）
