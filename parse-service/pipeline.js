@@ -27,13 +27,14 @@ const NUM_UNIT_RE = /(不低于|不小于|不少于|大于等于|≥|>=|至少)\
 const DATE_RE = /20\d{2}[-年/.\/]\d{1,2}[-月/.\/]\d{1,2}日?(?:\s*\d{1,2}[：:]\d{2}(?::\d{2})?)?/;
 
 const KNOWN_SECTIONS = [
-  '投标函', '法定代表人', '授权委托书', '报价一览表', '分项报价',
-  '技术方案', '技术规格', '技术参数', '技术偏离表', '商务偏离表', '商务条款',
-  '商务响应', '投标报价', '报价',
+  '投标函', '法定代表人', '授权委托书', '投标保证金', '报价一览表', '分项报价',
+  '技术方案', '技术规格', '技术参数', '技术标', '技术偏离表', '商务偏离表', '商务条款',
+  '商务标', '商务响应', '投标报价', '报价',
   '实施计划', '项目计划', '售后服务', '技术支持', '培训方案',
   '质量保证', '资格证明', '营业执照', '业绩', '人员配置',
+  '评分标准', '评标办法',
 ];
-const REQUIRED_SECTIONS = ['投标函', '报价', '技术方案', '资格'];
+const REQUIRED_SECTIONS = ['投标函', '报价', '技术方案', '资格', '保证金'];
 
 // 句子特征:出现这些词的是要求正文而非章节标题(均为多字词,避免单字误伤如"响应"中的"应")
 const SENTENCE_MARK = ['必须', '应当', '应该', '不得', '严禁', '禁止', '要求', '需要',
@@ -170,22 +171,27 @@ function extractScoring(elements) {
   elements.paragraphs.forEach((p, idx) => {
     const t = p.text;
     if (includesAny(t, SCORING_SECTION_KW) && t.length < 60) inScoring = true;
-    const m = SCORE_RE.exec(t);
-    if (!m) return;
+    const matches = [...t.matchAll(/(\d+(?:\.\d+)?)\s*分/g)];
+    if (!matches.length) return;
     if (!inScoring && p.table_idx < 0 && t.length > 120) return;
-    n += 1;
-    const firstCell = t.split(' | ')[0];
-    const item = (firstCell.split(/[：:，,。；;]/)[0].trim().slice(0, 30)) || `评分项${n}`;
-    out.push({
-      scoring_id: `score-${String(n).padStart(2, '0')}`,
-      scoring_item: item,
-      full_score: parseFloat(m[1]),
-      description: t.slice(0, 300),
-      clause_ref: clauseRef(p, idx),
-      grading_tiers: ['优', '良', '一般', '差'].filter((k) => t.includes(k))
-        .map((k) => ({ tier: k, range: '', criteria: t.slice(0, 120) })),
-      required_docs: [...t.matchAll(/《([^》]{2,30})》/g)].map((x) => x[1]).slice(0, 5),
-    });
+    // 同一行多个分值逐个拆分，按就近分句还原评分项名称
+    const segs = t.split(/[；;。]/);
+    for (const m of matches) {
+      n += 1;
+      const seg = segs.find((s) => s.includes(m[0])) || t;
+      const firstCell = seg.split(' | ')[0];
+      const item = (firstCell.split(/[：:，,。；;]/)[0].trim().slice(0, 30)) || `评分项${n}`;
+      out.push({
+        scoring_id: `score-${String(n).padStart(2, '0')}`,
+        scoring_item: item,
+        full_score: parseFloat(m[1]),
+        description: t.slice(0, 300),
+        clause_ref: clauseRef(p, idx),
+        grading_tiers: ['优', '良', '一般', '差'].filter((k) => t.includes(k))
+          .map((k) => ({ tier: k, range: '', criteria: t.slice(0, 120) })),
+        required_docs: [...t.matchAll(/《([^》]{2,30})》/g)].map((x) => x[1]).slice(0, 5),
+      });
+    }
   });
   return out;
 }
@@ -196,9 +202,12 @@ function extractDisqualify(elements) {
   let n = 0;
   elements.paragraphs.forEach((p, idx) => {
     const t = p.text;
-    if (t.length < 8 || t.length > 400) return;
+    const isStarred = t.includes('★') || t.includes('▲');
+    // 带 ★▲ 标记的行豁免最小长度检查(短强制条款如"★必须盖章"不应丢弃)
+    if ((!isStarred && t.length < 8) || t.length > 400) return;
     const hitDq = includesAny(t, DISQUALIFY_KW);
-    const hitStar = (t.includes('★') || t.includes('▲')) && ['实质性', '必须', '应', '须', '要求'].some((k) => t.includes(k));
+    // 仅多字词，避免单字"应/须"误伤"响应/须知"等正常词
+    const hitStar = isStarred && ['实质性', '必须', '应当', '应该', '要求', '否则', '不得'].some((k) => t.includes(k));
     if (!hitDq && !hitStar) return;
     n += 1;
     const severity = hitDq ? 'disqualify' : (['实质性', '★', '▲'].some((k) => t.includes(k)) ? 'substantive' : 'warning');

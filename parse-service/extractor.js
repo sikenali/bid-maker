@@ -11,7 +11,7 @@
 const HEADING_STYLE_RE = /heading\s*(\d)/i;
 const CN_CHAPTER_RE = /^第[一二三四五六七八九十\d]+[章节篇]/;
 const CN_ITEM_RE = /^[一二三四五六七八九十]+[、．.]/;
-const NUM_ITEM_RE = /^(\d+(\.\d+)*)[、．.。\s]/;
+const NUM_ITEM_RE = /^(\d+(\.\d+)*)([、．。\s]|\.(?!\d))/;
 
 function guessLevel(text, style) {
   const m = HEADING_STYLE_RE.exec(style || '');
@@ -21,6 +21,12 @@ function guessLevel(text, style) {
   const m2 = NUM_ITEM_RE.exec(text);
   if (m2 && text.length < 40) {
     return Math.min(m2[1].split('.').length, 3);
+  }
+  // 无分隔符的多段数字编号(如 5.1投标报价表):点分段数即层级;
+  // 要求含小数点,避免"2024年…"这类年份行被误判为标题
+  const m3 = /^(\d+(?:\.\d+)+)(?=[\u4e00-\u9fa5A-Za-z])/.exec(text);
+  if (m3 && text.length < 40) {
+    return Math.min(m3[1].split('.').length, 3);
   }
   return 0;
 }
