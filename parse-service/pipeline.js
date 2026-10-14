@@ -23,7 +23,8 @@ const ISSUER_RE = /(招标人|采购人|招标代理机构|采购代理机构)[�
 const MANDATORY_MARK = ['★', '▲', '实质性', '必须', '不得偏离', '不可偏离', '否则废标', '否则作废标'];
 const DISQUALIFY_KW = ['废标', '否决', '无效标', '无效投标', '拒绝', '不予受理', '取消投标资格'];
 const SCORE_RE = /(\d+(?:\.\d+)?)\s*分/;
-const NUM_UNIT_RE = /(不低于|不小于|不少于|大于等于|≥|>=|至少)\s*(\d+(?:\.\d+)?)\s*(TFlops|TOPS|GHz|MHz|Gbps|Mbps|TB|GB|MB|核|路|个|台|套|年|次|天|小时|%|mm|cm|m|km|V|A|W|kW)?/;
+const NUM_UNIT_RE = /(不低于|不小于|不少于|大于等于|≥|>=|至少)\s*(\d+(?:\.\d+)?)\s*(TFlops|TOPS|GHz|MHz|Gbps|Mbps|TB|GB|MB|KB|核|路|个|台|套|年|月|天|小时|分钟|秒|%|mm|cm|m|km|V|A|W|kW|MW|元|万元|人|户|份|项|册|本)?/;
+const MAX_UNIT_RE = /(不得大于|不得超过|不超过|不大于|小于|低于|≤|<)\s*(\d+(?:\.\d+)?)\s*(TFlops|TOPS|GHz|MHz|Gbps|Mbps|TB|GB|MB|KB|核|路|个|台|套|年|月|天|小时|分钟|秒|%|mm|cm|m|km|V|A|W|kW|MW|元|万元|人|户|份|项|册|本)?/;
 const DATE_RE = /20\d{2}[-年/.\/]\d{1,2}[-月/.\/]\d{1,2}日?(?:\s*\d{1,2}[：:]\d{2}(?::\d{2})?)?/;
 
 const KNOWN_SECTIONS = [
@@ -74,20 +75,26 @@ function extractTemplate(elements) {
   const sections = [];
   let order = 0;
   const seen = new Set();
+  let lastL1Id = null;
   for (const p of elements.paragraphs) {
     if (p.heading_level !== 1 && p.heading_level !== 2) continue;
     const norm = looksLikeSectionTitle(p.text);
     if (!norm || seen.has(norm)) continue;
     seen.add(norm);
     order += 1;
+    const id = `sec-${String(order).padStart(2, '0')}`;
+    const level = p.heading_level;
+    // L2 挂到最近的 L1 下,前端/后端据 parent_id 还原嵌套树
+    const parentId = level === 2 ? lastL1Id : null;
     sections.push({
-      section_id: `sec-${String(order).padStart(2, '0')}`,
+      section_id: id,
       title: norm,
-      level: p.heading_level,
+      level,
       order,
       required: REQUIRED_SECTIONS.some((k) => norm.includes(k)),
-      parent_id: null,
+      parent_id: parentId,
     });
+    if (level === 1) lastL1Id = id;
   }
   if (!sections.length) {
     ['投标函', '技术方案', '商务响应', '资格证明文件'].forEach((t, i) => {
@@ -118,19 +125,23 @@ function extractIndicators(elements) {
     if (t.length > 200) return;
     if (includesAny(t, ALL_COMMERCIAL_KW)) return; // 商务句不重复计入
     const m = NUM_UNIT_RE.exec(t);
+    const mx = MAX_UNIT_RE.exec(t);
     const star = t.includes('★') || t.includes('▲');
     const techHint = ['技术要求', '技术规格', '技术参数', '规格', '参数', '配置'].some((k) => (p.section + t).includes(k));
-    if (!m && !(star && techHint)) return;
+    if (!m && !mx && !(star && techHint)) return;
     n += 1;
+    // 名称取自包含数值约束的分句,避免整行多要求时名实不符(如"响应时间…并发数…")
+    const numMatch = m || mx;
+    const segOf = (numMatch ? t.split(/[，,。；;]/).find((s) => s.includes(numMatch[0])) : null) || t;
     out.push({
       indicator_id: `tech-${String(n).padStart(2, '0')}`,
-      name: t.split(/[：:，,。；;]/)[0].slice(0, 20),
+      name: segOf.split(/[：:，,。；;]/)[0].trim().slice(0, 20) || t.split(/[：:，,。；;]/)[0].slice(0, 20),
       requirement: t.slice(0, 200),
       clause_ref: clauseRef(p, idx),
       is_mandatory: star || includesAny(t, MANDATORY_MARK),
-      unit: m ? (m[3] || null) : null,
+      unit: (m && m[3]) || (mx && mx[3]) || null,
       min_value: m && m[1] ? parseFloat(m[2]) : null,
-      max_value: null,
+      max_value: mx && mx[1] ? parseFloat(mx[2]) : null,
       response_type: p.table_idx >= 0 ? 'table' : 'narrative',
     });
   });
@@ -143,19 +154,27 @@ function extractCommercial(elements) {
   let n = 0;
   elements.paragraphs.forEach((p, idx) => {
     const t = p.text;
+    // 标题行本身不是商务要求(如"6.3 售后服务方案"),跳过以免产生空洞条目
+    if (p.heading_level === 1 || p.heading_level === 2) return;
     for (const [cat, kws] of Object.entries(COMMERCIAL_CATS)) {
       if (!includesAny(t, kws)) continue;
       if (t.length < 6 || t.length > 300) continue;
       n += 1;
       const docs = [...t.matchAll(/《([^》]{2,30})》/g)].map((m) => m[1]);
-      for (const k of DOC_KW.slice(0, 2)) if (t.includes(k)) docs.push(k + '证明');
+      for (const k of DOC_KW) {
+        if (!t.includes(k)) continue;
+        if (docs.some((d) => d.includes(k))) continue;
+        docs.push(/证明|证书$/.test(k) ? k : `${k}证明`);
+      }
+      // 去掉被更长条目覆盖的短项(如"证明"被"资质证明"覆盖)
+      const deduped = docs.filter((d, i) => !docs.some((o, j) => j !== i && o.includes(d) && o.length > d.length));
       out.push({
         req_id: `biz-${String(n).padStart(2, '0')}`,
         category: cat,
         title: t.slice(0, 24),
         description: t.slice(0, 300),
         clause_ref: clauseRef(p, idx),
-        deliverable: docs.slice(0, 5),
+        deliverable: deduped.slice(0, 5),
       });
       break;
     }

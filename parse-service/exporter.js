@@ -18,7 +18,7 @@ const RELS = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`;
 
 const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:pPr><w:keepNext/><w:keepLines/><w:spacing w:after="120"/><w:jc w:val="center"/></w:pPr><w:rPr><w:b/><w:sz w:val="32"/><w:szCs w:val="32"/><w:rFonts w:hint="eastAsia" w:ascii="SimHei" w:eastAsia="SimHei"/></w:rPr></w:style><w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/><w:pPr><w:keepNext/><w:keepLines/><w:spacing w:before="120" w:after="60"/></w:pPr><w:rPr><w:b/><w:sz w:val="28"/><w:szCs w:val="28"/><w:rFonts w:hint="eastAsia" w:ascii="SimHei" w:eastAsia="SimHei"/></w:rPr></w:style><w:style w:type="paragraph" w:styleId="Normal"><w:name w:val="Normal"/><w:pPr><w:spacing w:after="100" w:line="360" w:lineRule="auto"/><w:ind w:firstLine="480"/></w:pPr><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/><w:rFonts w:hint="eastAsia" w:ascii="SimSun" w:eastAsia="SimSun"/></w:rPr></w:style></w:styles>`;
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:pPr><w:keepNext/><w:keepLines/><w:spacing w:after="120"/><w:jc w:val="center"/></w:pPr><w:rPr><w:b/><w:sz w:val="32"/><w:szCs w:val="32"/><w:rFonts w:hint="eastAsia" w:ascii="SimHei" w:eastAsia="SimHei"/></w:rPr></w:style><w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/><w:pPr><w:keepNext/><w:keepLines/><w:spacing w:before="120" w:after="60"/></w:pPr><w:rPr><w:b/><w:sz w:val="28"/><w:szCs w:val="28"/><w:rFonts w:hint="eastAsia" w:ascii="SimHei" w:eastAsia="SimHei"/></w:rPr></w:style><w:style w:type="paragraph" w:styleId="Heading3"><w:name w:val="heading 3"/><w:pPr><w:keepNext/><w:keepLines/><w:spacing w:before="120" w:after="60"/></w:pPr><w:rPr><w:b/><w:sz w:val="26"/><w:szCs w:val="26"/><w:rFonts w:hint="eastAsia" w:ascii="SimHei" w:eastAsia="SimHei"/></w:rPr></w:style><w:style w:type="paragraph" w:styleId="Normal"><w:name w:val="Normal"/><w:pPr><w:spacing w:after="100" w:line="360" w:lineRule="auto"/><w:ind w:firstLine="480"/></w:pPr><w:rPr><w:sz w:val="24"/><w:szCs w:val="24"/><w:rFonts w:hint="eastAsia" w:ascii="SimSun" w:eastAsia="SimSun"/></w:rPr></w:style></w:styles>`;
 
 const DOC_RELS = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
@@ -29,7 +29,7 @@ const titlePara = (style, tag) =>
   para(`<w:pPr><w:pStyle w:val="${style}"/></w:pPr>${textRun(`{${tag}}`)}`);
 const loopPara = (tag) => para(textRun(`{${tag}}`));
 
-// 模板正文:封面标题 + 元信息 + 章节循环(h1/h2 条件段落 + 正文)
+// 模板正文:封面标题 + 元信息 + 章节循环(h1/h2/h3 条件段落 + 正文)
 const DOCUMENT_XML =
   `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
   `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>` +
@@ -38,6 +38,7 @@ const DOCUMENT_XML =
   loopPara('#sections') +
   para(`<w:pPr><w:pStyle w:val="Heading1"/></w:pPr>` + textRun('{#h1}{title}{/h1}')) +
   para(`<w:pPr><w:pStyle w:val="Heading2"/></w:pPr>` + textRun('{#h2}{title}{/h2}')) +
+  para(`<w:pPr><w:pStyle w:val="Heading3"/></w:pPr>` + textRun('{#h3}{title}{/h3}')) +
   para(textRun('{content}')) +
   loopPara('/sections') +
   `<w:sectPr><w:pgSz w:w="11900" w:h="16840"/><w:pgMar w:top="1440" w:right="1800" w:bottom="1440" w:left="1800"/></w:sectPr>` +
@@ -63,6 +64,7 @@ function renderDocx(data) {
     content: String(s.content || ''),
     h1: (s.level || 1) === 1,
     h2: (s.level || 1) === 2,
+    h3: (s.level || 1) >= 3,
   }));
   const doc = new Docxtemplater(buildTemplateZip(), {
     paragraphLoop: true,
