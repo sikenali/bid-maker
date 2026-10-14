@@ -19,4 +19,16 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'editor-heavy': ['@eigenpal/docx-editor-vue', '@tiptap/vue-3', '@tiptap/starter-kit'],
+          'markdown-utils': ['marked', 'turndown'],
+        },
+      },
+    },
+    chunkSizeWarningLimit: 800,
+  },
 })
+

@@ -5,6 +5,7 @@ import {
   getSession,
   updateSession,
   generateFull,
+  getGenerateFullStream,
   runOutlineSkill,
   getGenerateStream,
   getMarkdown,
@@ -16,6 +17,7 @@ import TopNav from '@/components/layout/TopNav.vue'
 import { useChatStore } from '../stores/chatStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { DocxEditor, createEmptyDocument } from '@eigenpal/docx-editor-vue'
+import { serializeDocumentBody } from '@eigenpal/docx-editor-core'
 import { markdownToDocx } from '@/utils/markdownDocx'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
@@ -91,6 +93,7 @@ const docxEditorRef = ref<InstanceType<typeof DocxEditor> | null>(null)
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const mdEditorRef = ref<any>(null)
 const wordDocLoading = ref(false)
+let wordSaveTimer: ReturnType<typeof setTimeout> | null = null
 
 // turndown service for converting HTML to markdown
 const turndownService = new TurndownService({
@@ -188,6 +191,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   if (mdSaveTimer) clearTimeout(mdSaveTimer)
+  if (wordSaveTimer) clearTimeout(wordSaveTimer)
   if (genTimeout) clearTimeout(genTimeout)
   sses.forEach(es => es.close())
   window.removeEventListener('gen-chunk', handleGenChunk as EventListener)
@@ -477,12 +481,73 @@ async function handleGenerateFull() {
   isGenerating.value = true
   generationProgress.value = 0
   try {
-    await generateFull(props.id, {})
-    showToast('标书生成已启动')
+    const es = getGenerateFullStream(props.id)
+    sses.push(es)
+    es.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        if (data.chunk) {
+          const section = findSectionById(outline.value, data.section_id)
+          if (section) {
+            const buffer = (sectionBuffers.get(data.section_id) || '') + (data.chunk || '')
+            sectionBuffers.set(data.section_id, buffer)
+            markdown.value = setSectionMarkdownContent(markdown.value || '', section.title, section.level, buffer)
+            if (editorMode.value === 'markdown' && mdEditor.value) {
+              mdEditor.value.commands.setContent(markdown.value)
+            }
+            generationProgress.value = data.progress || Math.min(95, generationProgress.value + 2)
+          }
+        } else if (data.progress !== undefined) {
+          generationProgress.value = data.progress
+        } else if (data.done) {
+          es.close()
+          sses = sses.filter(x => x !== es)
+          sectionBuffers.clear()
+          isGenerating.value = false
+          generationProgress.value = 100
+          // Reload session to pick up backend-persisted content
+          setTimeout(() => reloadSession(), 300)
+        } else if (data.error) {
+          es.close()
+          sses = sses.filter(x => x !== es)
+          isGenerating.value = false
+          showToast(`生成失败：${data.error}`, 'error')
+        }
+      } catch {}
+    }
+    es.onerror = () => {
+      es.close()
+      sses = sses.filter(x => x !== es)
+      isGenerating.value = false
+      generationProgress.value = 0
+      showToast('生成连接中断，请重试', 'error')
+    }
+    if (genTimeout) clearTimeout(genTimeout)
+    genTimeout = setTimeout(() => {
+      es.close()
+      sses = sses.filter(x => x !== es)
+      isGenerating.value = false
+      generationProgress.value = 0
+      sectionBuffers.clear()
+      showToast('生成超时，请重试', 'error')
+    }, 300000)
+    showToast('全文生成已启动，请稍候…')
   } catch (err: any) {
     showToast(err?.response?.data?.error || '生成失败', 'error')
     isGenerating.value = false
   }
+}
+
+// Reload session content after full generation completes
+async function reloadSession() {
+  try {
+    const res = await getSession(props.id)
+    if (res.data.markdown) {
+      markdown.value = res.data.markdown
+      if (mdEditor.value) mdEditor.value.commands.setContent(markdown.value)
+      if (editorMode.value === 'word' && docxEditorRef.value) syncWordMode()
+    }
+  } catch {}
 }
 
 function handleGenChunk(e: CustomEvent) {
@@ -495,9 +560,7 @@ function handleGenChunk(e: CustomEvent) {
   if (editorMode.value === 'markdown' && mdEditor.value) {
     mdEditor.value.commands.setContent(markdown.value)
   }
-  if (editorMode.value === 'word' && docxEditorRef.value) {
-    syncWordMode()
-  }
+  // Word mode only synced on gen-done, not per-chunk (performance)
   generationProgress.value = Math.min(95, generationProgress.value + 1)
 }
 
@@ -611,6 +674,20 @@ async function syncWordMode() {
   } finally {
     wordDocLoading.value = false
   }
+}
+
+// Word 模式编辑内容回写 markdown（防抖保存）
+function handleWordChange(_doc: any) {
+  try {
+    const text = serializeDocumentBody(_doc.package.document)
+    // 提取 <w:t>text</w:t> 内容，保留段落结构
+    const lines = text.match(/<w:t[^>]*>([^<]*)<\/w:t>/g) || []
+    const mdContent = lines.map(l => l.replace(/<\/?w:t[^>]*>/g, '')).join('\n')
+    if (mdContent && mdContent !== markdown.value) {
+      markdown.value = mdContent
+      scheduleSave()
+    }
+  } catch {}
 }
 
 function handleModeSwitch(mode: 'word' | 'markdown') {
@@ -792,6 +869,7 @@ const OutlineNodeRecursive = defineComponent({
               :show-ruler="true"
               document-name="标书文档"
               mode="editing"
+              @change="handleWordChange"
             />
             <div v-if="wordDocLoading" class="word-sync-badge">
               <RiLoader4Line size="14" class="spin-icon" />

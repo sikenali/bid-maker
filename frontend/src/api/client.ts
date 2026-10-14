@@ -202,6 +202,14 @@ export const generateFull = (sessionId: string, data: {
     data
   )
 
+export const getGenerateFullStream = (sessionId: string, provider?: string, model?: string): EventSource => {
+  const params = new URLSearchParams()
+  if (provider) params.set('provider', provider)
+  if (model) params.set('model', model)
+  const url = `/sessions/${sessionId}/skills/generate/full/stream?${params}`
+  return new EventSource(url)
+}
+
 export const getGenerateStream = (sessionId: string, sectionId: string, provider?: string, model?: string): EventSource => {
   const params = new URLSearchParams({ section_id: sectionId })
   if (provider) params.set('provider', provider)

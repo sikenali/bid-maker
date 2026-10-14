@@ -46,6 +46,7 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 		api.POST("/sessions/:id/skills/generate/section", h.RunGenerateSection)
 		api.POST("/sessions/:id/skills/generate/full", h.RunGenerateFull)
 		api.GET("/sessions/:id/skills/generate/stream", h.GenerateSectionStream)
+		api.GET("/sessions/:id/skills/generate/full/stream", h.GenerateFullStream)
 		api.GET("/sessions/:id/export", h.ExportDocument)
 		api.GET("/sessions/:id/export/markdown", h.GetMarkdown)
 		api.GET("/skills", h.ListSkills)
@@ -441,6 +442,63 @@ func (h *Handler) GenerateSectionStream(c *gin.Context) {
 		return
 	}
 	fmt.Fprintf(c.Writer, "event: done\ndata: %s\n\n", jsonStr(gin.H{"section_id": sectionID}))
+}
+
+// GenerateFullStream SSE 全文生成流 — 前端通过 GET /sessions/:id/skills/generate/full/stream 连接
+func (h *Handler) GenerateFullStream(c *gin.Context) {
+	sessionID := c.Param("id")
+	session, ok := h.sessionStore.GetSession(sessionID)
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
+		return
+	}
+	provider := c.Query("provider")
+	modelName := c.Query("model")
+	if session.Outline == nil || len(session.Outline.Sections) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请先在大纲中生成章节，再执行全文生成"})
+		return
+	}
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+
+	sections := flattenSections(session.Outline.Sections)
+	total := len(sections)
+	if total == 0 {
+		fmt.Fprintf(c.Writer, "event: done\ndata: %s\n\n", jsonStr(gin.H{}))
+		return
+	}
+	completed := 0
+	for _, sec := range sections {
+		if sec.Content != "" {
+			completed++
+			continue
+		}
+		prompt := buildSectionPrompt(session, sec)
+		messages := []map[string]string{
+			{"role": "system", "content": "你是一名资深的投标文件撰写专家。请根据大纲章节要求，撰写专业、完整、可直接使用的标书内容。输出纯文本，不要加额外的Markdown标题。"},
+			{"role": "user", "content": prompt},
+		}
+		var content string
+		err := h.gateway.ChatStream(c.Request.Context(), provider, messages, modelName, func(chunk string) {
+			content += chunk
+			fmt.Fprintf(c.Writer, "event: chunk\ndata: %s\n\n", jsonStr(gin.H{"section_id": sec.SectionID, "chunk": chunk, "title": sec.Title, "progress": int(float64(completed+1)/float64(total)*100)}))
+			c.Writer.Flush()
+		})
+		if err != nil {
+			h.sessionStore.MarkSectionFailed(sessionID, sec.SectionID, err.Error())
+			fmt.Fprintf(c.Writer, "event: error\ndata: %s\n\n", jsonStr(gin.H{"section_id": sec.SectionID, "error": err.Error()}))
+			c.Writer.Flush()
+			continue
+		}
+		now := time.Now().UTC()
+		h.sessionStore.SetSectionContent(sessionID, sec.SectionID, sec.Title, sec.Level, content, &now)
+		completed++
+		progress := int(float64(completed) / float64(total) * 100)
+		fmt.Fprintf(c.Writer, "event: progress\ndata: %s\n\n", jsonStr(gin.H{"progress": progress, "completed": completed, "total": total}))
+		c.Writer.Flush()
+	}
+	fmt.Fprintf(c.Writer, "event: done\ndata: %s\n\n", jsonStr(gin.H{"completed": completed, "total": total}))
 }
 
 func (h *Handler) ExportDocument(c *gin.Context) {
