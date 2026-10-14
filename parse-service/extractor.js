@@ -51,22 +51,17 @@ function extractFromAst(ast) {
   const pushPara = (text, style, level, tableIdx) => {
     text = (text || '').trim();
     if (!text) return;
-    if (level === 1) currentSection = text.slice(0, 60);
+    // L1/L2 均更新溯源节,使 clause_ref 指向最近标题而非仅章标题
+    if (level === 1 || level === 2) currentSection = text.slice(0, 60);
     paragraphs.push({ text, style: style || '', heading_level: level, section: currentSection, table_idx: tableIdx });
   };
 
   const walkCell = (cell) => {
-    // cell -> paragraph -> text
+    // cell -> paragraph -> text,全部叶子文本拼接
     const parts = [];
-    const kids = cell.children || [];
-    for (const k of kids) {
-      if (k.type === 'paragraph' || k.type === 'text') {
-        const t = nodeText(k).trim();
-        if (t) parts.push(t);
-      } else {
-        const t = nodeText(k).trim();
-        if (t) parts.push(t);
-      }
+    for (const k of cell.children || []) {
+      const t = nodeText(k).trim();
+      if (t) parts.push(t);
     }
     return parts.join(' ');
   };

@@ -652,9 +652,14 @@ function selectModel(id: string) {
 }
 
 // ── Markdown helpers ───────────────────────────────────────────────
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 function setSectionMarkdownContent(md: string, title: string, level: number, content: string): string {
   const prefix = '#'.repeat(level) + ' ' + title
-  const sectionPattern = new RegExp(`^${prefix}\\.?\\s+\\n[\\s\\S]*?(?=^#{1,${level}} |\\Z)`, 'm')
+  const safePrefix = escapeRegExp(prefix)
+  const sectionPattern = new RegExp(`^${safePrefix}\\.?\\s+\\n[\\s\\S]*?(?=^#{1,${level}} |\\Z)`, 'm')
   const newSection = `${prefix}\n\n${content}\n\n`
   if (sectionPattern.test(md)) {
     return md.replace(sectionPattern, newSection)

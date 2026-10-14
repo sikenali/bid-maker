@@ -24,7 +24,7 @@ const MANDATORY_MARK = ['★', '▲', '实质性', '必须', '不得偏离', '�
 const DISQUALIFY_KW = ['废标', '否决', '无效标', '无效投标', '拒绝', '不予受理', '取消投标资格'];
 const SCORE_RE = /(\d+(?:\.\d+)?)\s*分/;
 const NUM_UNIT_RE = /(不低于|不小于|不少于|大于等于|≥|>=|至少)\s*(\d+(?:\.\d+)?)\s*(TFlops|TOPS|GHz|MHz|Gbps|Mbps|TB|GB|MB|KB|核|路|个|台|套|年|月|天|小时|分钟|秒|%|mm|cm|m|km|V|A|W|kW|MW|元|万元|人|户|份|项|册|本)?/;
-const MAX_UNIT_RE = /(不得大于|不得超过|不超过|不大于|小于|低于|≤|<)\s*(\d+(?:\.\d+)?)\s*(TFlops|TOPS|GHz|MHz|Gbps|Mbps|TB|GB|MB|KB|核|路|个|台|套|年|月|天|小时|分钟|秒|%|mm|cm|m|km|V|A|W|kW|MW|元|万元|人|户|份|项|册|本)?/;
+const MAX_UNIT_RE = /(?<!不)(不得大于|不得超过|不超过|不大于|小于|低于|≤|<)\s*(\d+(?:\.\d+)?)\s*(TFlops|TOPS|GHz|MHz|Gbps|Mbps|TB|GB|MB|KB|核|路|个|台|套|年|月|天|小时|分钟|秒|%|mm|cm|m|km|V|A|W|kW|MW|元|万元|人|户|份|项|册|本)?/;
 const DATE_RE = /20\d{2}[-年/.\/]\d{1,2}[-月/.\/]\d{1,2}日?(?:\s*\d{1,2}[：:]\d{2}(?::\d{2})?)?/;
 
 const KNOWN_SECTIONS = [
@@ -53,7 +53,7 @@ const COMMERCIAL_CATS = {
 const ALL_COMMERCIAL_KW = Object.values(COMMERCIAL_CATS).flat();
 
 const SCORING_SECTION_KW = ['评分标准', '评标办法', '评分细则', '分值', '评审标准'];
-const SEAL_KW = ['盖章', '公章', '签字', '签章'];
+const SEAL_KW = ['盖章', '公章', '签字', '签章', '密封'];
 const DOC_KW = ['证书', '证明', '报告', '材料', '文件', '执照', '资质'];
 
 const includesAny = (t, kws) => kws.some((k) => t.includes(k));
@@ -84,11 +84,13 @@ function extractTemplate(elements) {
     order += 1;
     const id = `sec-${String(order).padStart(2, '0')}`;
     const level = p.heading_level;
+    // 标题保留原文(含章号如"第一章 投标函"),匹配/去重仍用去编号的norm
+    const title = p.text.trim().slice(0, 40);
     // L2 挂到最近的 L1 下,前端/后端据 parent_id 还原嵌套树
     const parentId = level === 2 ? lastL1Id : null;
     sections.push({
       section_id: id,
-      title: norm,
+      title,
       level,
       order,
       required: REQUIRED_SECTIONS.some((k) => norm.includes(k)),
@@ -130,12 +132,14 @@ function extractIndicators(elements) {
     const techHint = ['技术要求', '技术规格', '技术参数', '规格', '参数', '配置'].some((k) => (p.section + t).includes(k));
     if (!m && !mx && !(star && techHint)) return;
     n += 1;
-    // 名称取自包含数值约束的分句,避免整行多要求时名实不符(如"响应时间…并发数…")
+    // 名称取自包含数值约束的分句,避免整行多要求时名实不符(如"响应时间…并发数…");
+    // 表格行先按" | "取首列,避免名称混入整行管道符
     const numMatch = m || mx;
     const segOf = (numMatch ? t.split(/[，,。；;]/).find((s) => s.includes(numMatch[0])) : null) || t;
+    const nameSeg = segOf.split(' | ')[0];
     out.push({
       indicator_id: `tech-${String(n).padStart(2, '0')}`,
-      name: segOf.split(/[：:，,。；;]/)[0].trim().slice(0, 20) || t.split(/[：:，,。；;]/)[0].slice(0, 20),
+      name: nameSeg.split(/[：:，,。；;]/)[0].trim().slice(0, 20) || t.split(/[：:，,。；;]/)[0].slice(0, 20),
       requirement: t.slice(0, 200),
       clause_ref: clauseRef(p, idx),
       is_mandatory: star || includesAny(t, MANDATORY_MARK),
@@ -193,9 +197,12 @@ function extractScoring(elements) {
     const matches = [...t.matchAll(/(\d+(?:\.\d+)?)\s*分/g)];
     if (!matches.length) return;
     if (!inScoring && p.table_idx < 0 && t.length > 120) return;
+    // 表格行本身即一个评分项,仅取首个分值(准则列里的"良得30分/扣1分"不是独立项);
+    // 正文行按分句逐个拆分
+    const useMatches = t.includes(' | ') ? matches.slice(0, 1) : matches;
     // 同一行多个分值逐个拆分，按就近分句还原评分项名称
     const segs = t.split(/[；;。]/);
-    for (const m of matches) {
+    for (const m of useMatches) {
       n += 1;
       const seg = segs.find((s) => s.includes(m[0])) || t;
       const firstCell = seg.split(' | ')[0];
@@ -229,7 +236,9 @@ function extractDisqualify(elements) {
     const hitStar = isStarred && ['实质性', '必须', '应当', '应该', '要求', '否则', '不得'].some((k) => t.includes(k));
     if (!hitDq && !hitStar) return;
     n += 1;
-    const severity = hitDq ? 'disqualify' : (['实质性', '★', '▲'].some((k) => t.includes(k)) ? 'substantive' : 'warning');
+    // 强废标词才定 disqualify;弱词(拒绝/不予受理)降为 warning,除非带★▲实质标记
+    const hitStrong = includesAny(t, ['废标', '否决', '无效标', '无效投标', '取消投标资格']);
+    const severity = hitStrong ? 'disqualify' : (['实质性', '★', '▲'].some((k) => t.includes(k)) ? 'substantive' : 'warning');
     const dm = DATE_RE.exec(t);
     const check = includesAny(t, SEAL_KW) ? 'seal'
       : (t.includes('保证金') || t.includes('截止') || dm) ? 'deadline'
