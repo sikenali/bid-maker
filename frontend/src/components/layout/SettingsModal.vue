@@ -241,7 +241,7 @@ function selectTab(key: string) {
 }
 
 .nav-item.active {
-  background-color: #F6EEDA;
+  background-color: var(--color-primary-soft);
 }
 
 .nav-item.active .icon,

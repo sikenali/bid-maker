@@ -1472,7 +1472,7 @@ const OutlineNodeRecursive = defineComponent({
 }
 
 .outline-node.active {
-  background: rgba(247, 239, 223, 1);
+  background: var(--color-primary-soft);
 }
 
 .outline-node.child .node-title {
@@ -1482,7 +1482,7 @@ const OutlineNodeRecursive = defineComponent({
 }
 
 .outline-node.active.child {
-  background: rgba(247, 239, 223, 1);
+  background: var(--color-primary-soft);
 }
 
 .outline-node.active.child .node-title {
@@ -2092,7 +2092,7 @@ const OutlineNodeRecursive = defineComponent({
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  background: rgba(251, 249, 245, 1);
+  background: var(--color-bg-white);
   border: 1px solid var(--color-border-soft);
   position: relative;
 }
@@ -2248,11 +2248,11 @@ const OutlineNodeRecursive = defineComponent({
 }
 
 .msg-ai .bubble {
-  background: rgba(243, 238, 228, 1);
+  background: var(--color-bg-secondary);
 }
 
 .msg-user .bubble {
-  background: rgba(247, 238, 220, 1);
+  background: var(--color-primary-soft);
 }
 
 .chat-input-wrap {
@@ -2326,7 +2326,7 @@ const OutlineNodeRecursive = defineComponent({
 }
 
 .skill-chip-close:hover {
-  background: rgba(192, 57, 43, 0.1);
+  background: var(--color-error-soft);
 }
 
 .skill-popup {

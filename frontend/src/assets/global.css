@@ -117,32 +117,8 @@
   --z-tooltip: 1070;
 }
 
-/* Dark Theme Overrides */
-[data-theme="dark"] {
-  --color-primary: #E05050;
-  --color-primary-soft: #3A2323;
-  --color-bg-main: #17171A;
-  --color-bg-secondary: #1C1C1F;
-  --color-bg-card: #232324;
-  --color-bg-white: #232324;
-  --color-text-primary: #F2F3F5;
-  --color-text-body: #DDE0E6;
-  --color-text-secondary: #C9CDD4;
-  --color-text-muted: #A7AEB9;
-  --color-text-faint: #86909C;
-  --color-border: #2A2B2E;
-  --color-border-soft: #2A2B2E;
-  --color-border-hover: #3A3B3F;
-  --color-info: #82AEDD;
-  --color-info-soft: #1B2A3A;
-  --color-success: #5CB98C;
-  --color-success-strong: #7BC8A4;
-  --color-success-soft: #1D3329;
-  --color-warning: #F2B23E;
-  --color-warning-soft: #38300F;
-  --color-error: #E86A5A;
-  --color-error-soft: #3A2326;
-}
+/* 主题切换唯一来源: stores/theme.ts (JS 直写 CSS 变量);
+   下方 dark 覆盖块已删除(data-theme 属性无任何设置方,留存会造成双源误解) */
 
 /* Global Reset & Base Styles */
 *, *::before, *::after {

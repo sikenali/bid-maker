@@ -156,7 +156,7 @@ function handleSubmit() {
   color: var(--color-text-muted, #8A8578);
 }
 .form-hint code {
-  background: rgba(245,239,227,0.5);
+  background: var(--color-bg-secondary, #F7F3EA);
   padding: 1px 4px;
   border-radius: 4px;
   font-size: 11px;

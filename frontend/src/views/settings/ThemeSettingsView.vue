@@ -383,7 +383,7 @@ function resetAll() {
   transition: all 0.2s;
 }
 .theme-preview-card.active {
-  background-color: #FBF5E3;
+  background-color: var(--color-primary-soft);
   border-color: #E4CD8E;
 }
 .preview-thumb {
@@ -476,7 +476,7 @@ function resetAll() {
   transition: all 0.2s;
 }
 .layout-card.active {
-  background-color: #FBF5E3;
+  background-color: var(--color-primary-soft);
   border-color: #E4CD8E;
 }
 .layout-preview {
