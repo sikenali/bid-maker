@@ -95,8 +95,18 @@ func (h *Handler) UpdateSession(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	session.Title = req.Title
-	session.BidNo = req.BidNo
+	// 部分更新:空标题/编号视为未提供,避免自动保存(markdown only)清空标题;
+	// Markdown 与 CurrentSection 始终全量替换(清空文档也是合法状态)
+	if req.Title != "" {
+		session.Title = req.Title
+	}
+	if req.BidNo != "" {
+		session.BidNo = req.BidNo
+	}
+	session.Markdown = req.Markdown
+	if req.CurrentSection != "" {
+		session.CurrentSection = req.CurrentSection
+	}
 	h.sessionStore.UpdateSession(session)
 	c.JSON(http.StatusOK, session)
 }
@@ -135,6 +145,20 @@ func (h *Handler) RunParseSkill(c *gin.Context) {
 		}
 		filePath = req.FilePath
 		filename = filePath
+	}
+
+	// 与解析服务白名单对齐,不支持的格式即时 400(否则要等异步任务失败)
+	lowerName := strings.ToLower(filename)
+	allowed := false
+	for _, e := range []string{".docx", ".xlsx", ".xlsm", ".pptx", ".pdf", ".md", ".txt", ".csv", ".html"} {
+		if strings.HasSuffix(lowerName, e) {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "不支持的文件格式:仅支持 .docx/.xlsx/.pptx/.pdf/.md/.txt/.csv/.html"})
+		return
 	}
 
 	taskID := uuid.New().String()

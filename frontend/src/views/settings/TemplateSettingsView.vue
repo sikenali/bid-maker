@@ -137,7 +137,8 @@ async function handleAdd() {
       category: newTemplateCategory.value.trim() || '自定义',
       type: 'custom' as any,
       keywords: [],
-      content: [],
+      content: parseContentText(newTemplateContentText.value),
+      enabled: 1,
     } satisfies any);
     await loadTemplates();
     showAddDialog.value = false;

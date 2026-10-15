@@ -213,6 +213,7 @@ async function loadSkills() {
     const skillsList = (data || []).map((s: any) => ({
       ...s,
       enabled: s.enabled ?? true,
+      rules: Array.isArray(s.rules) ? s.rules : [],
     }));
     if (skillsList.length > 0) {
       skills.value = skillsList;
@@ -303,7 +304,7 @@ async function toggleEnabled(skill: SkillItem) {
 
 async function handleDelete(skill: SkillItem) {
   try {
-    await ElMessageBox.confirm(`确定删除技能「${skill.name}」及其 ${skill.rules.length} 条规则？`, '确认删除');
+    await ElMessageBox.confirm(`确定删除技能「${skill.name}」及其 ${(skill.rules || []).length} 条规则？`, '确认删除');
     await deleteSkill(skill.name);
     ElMessage.success('已删除');
     if (expandedSkill.value === skill.name) expandedSkill.value = null;
