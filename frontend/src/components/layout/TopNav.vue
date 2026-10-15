@@ -20,7 +20,7 @@ const showSettingsModal = ref(false);
 
 <template>
   <header class="top-nav">
-    <div class="nav-left" @click="router.push('/upload')">
+    <div class="nav-left" @click="router.push('/')">
       <div class="tool-mark">
         <RiTargetLine class="tool-logo" />
       </div>
@@ -30,7 +30,7 @@ const showSettingsModal = ref(false);
     </div>
     <div class="nav-right">
       <UiTip v-if="showBack" text="返回" placement="bottom">
-        <button class="nav-btn" @click="router.push('/upload')">
+        <button class="nav-btn" @click="router.push('/')">
           <RiArrowLeftSLine class="icon" />
         </button>
       </UiTip>
