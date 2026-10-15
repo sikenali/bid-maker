@@ -9,10 +9,13 @@ import (
 )
 
 type Config struct {
-	Port           int                `json:"port"`
-	LLMProviders   []LLMProviderConfig
-	PythonService  string             `json:"python_service"`
-	RAGEnabled     bool               `json:"rag_enabled"`
+	Port          int `json:"port"`
+	LLMProviders  []LLMProviderConfig
+	PythonService string `json:"python_service"`
+	RAGEnabled    bool   `json:"rag_enabled"`
+	// FrontendDist 指向前端构建产物目录(frontend/dist);非空且存在时后端托管静态文件,
+	// 供 Electron 桌面客户端直接 loadURL。开发环境留空,继续由 vite 提供前端。
+	FrontendDist string `json:"-"`
 }
 
 type LLMProviderConfig struct {
@@ -39,6 +42,8 @@ func Load() (*Config, error) {
 	if cfg.PythonService == "" {
 		cfg.PythonService = "http://localhost:8000"
 	}
+
+	cfg.FrontendDist = os.Getenv("FRONTEND_DIST")
 
 	rag := os.Getenv("RAG_ENABLED")
 	if rag == "false" {

@@ -6,7 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -58,6 +61,47 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 		api.POST("/chat", h.Chat)
 		api.GET("/local-skills", h.ListLocalSkills)
 	}
+
+	r.GET("/health", h.Health)
+
+	// 仅在显式配置 FRONTEND_DIST 且目录存在时托管前端静态文件(桌面客户端模式)。
+	h.registerStaticIfConfigured(r)
+}
+
+// Health 存活探针;Electron 主进程用它等待后端就绪。
+func (h *Handler) Health(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "bid-maker-backend"})
+}
+
+// registerStaticIfConfigured 托管 frontend/dist 并做 SPA 路由回落。
+// gin 的 NoRoute 必须在所有路由注册之后设置,故由 RegisterRoutes 末尾调用。
+func (h *Handler) registerStaticIfConfigured(r *gin.Engine) {
+	dist := h.config.FrontendDist
+	if dist == "" {
+		return
+	}
+	if fi, err := os.Stat(dist); err != nil || !fi.IsDir() {
+		log.Printf("FRONTEND_DIST=%q 不存在或不是目录,跳过静态托管", dist)
+		return
+	}
+
+	indexPath := filepath.Join(dist, "index.html")
+	r.Static("/assets", filepath.Join(dist, "assets"))
+
+	r.NoRoute(func(c *gin.Context) {
+		// /api 下的未知路径返回 404,避免把 API 错拼误判成 SPA 路由
+		if strings.HasPrefix(c.Request.URL.Path, "/api/") || c.Request.URL.Path == "/api" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+			return
+		}
+		if _, err := os.Stat(indexPath); err != nil {
+			c.String(http.StatusInternalServerError, "frontend dist not ready")
+			return
+		}
+		c.File(indexPath)
+	})
+
+	log.Printf("静态托管已启用: %s", dist)
 }
 
 func (h *Handler) CreateSession(c *gin.Context) {

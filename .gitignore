@@ -8,6 +8,11 @@ dist/
 backend/server
 backend/server_new
 
+# Desktop packaging
+bin/
+release/
+frontend/.rttest/
+
 # IDE
 .vscode/
 .idea/

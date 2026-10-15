@@ -1,9 +1,23 @@
 {
+  "name": "bid-maker",
+  "version": "1.0.0",
+  "description": "文制星 — AI 智能标书编写系统",
+  "private": true,
+  "main": "electron/main.js",
   "scripts": {
     "dev": "concurrently -n parse,backend,frontend -c yellow,green,cyan \"cd parse-service && node server.js\" \"wait-on tcp:8000 && cd backend && (command -v air > /dev/null && air || go run ./cmd/server/)\" \"wait-on tcp:8080 && npm --prefix frontend run dev\"",
     "dev:backend": "cd backend && go run ./cmd/server/",
     "dev:parse": "cd parse-service && node server.js",
-    "dev:frontend": "npm --prefix frontend run dev"
+    "dev:frontend": "npm --prefix frontend run dev",
+    "typecheck": "npm --prefix frontend run typecheck",
+    "build": "npm run build --prefix frontend",
+    "build:backend": "node scripts/build-backend.js",
+    "build:backend:all": "node scripts/build-backend.js --all",
+    "electron:dev": "concurrently -k \"npm run dev\" \"wait-on tcp:3000 && cross-env NODE_ENV=development electron .\"",
+    "package:desktop": "node scripts/package-desktop.js",
+    "package:desktop:win": "node scripts/package-desktop.js --win",
+    "package:desktop:mac": "node scripts/package-desktop.js --mac",
+    "package:desktop:linux": "node scripts/package-desktop.js --linux"
   },
   "dependencies": {
     "@remixicon/vue": "^4.9.0",
@@ -12,6 +26,124 @@
   "devDependencies": {
     "@types/file-saver": "^2.0.7",
     "concurrently": "^10.0.6",
+    "cross-env": "^7.0.3",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8",
     "wait-on": "^9.5.1"
+  },
+  "build": {
+    "appId": "com.wenquxing.bid-maker",
+    "productName": "文制星",
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "directories": {
+      "output": "release",
+      "buildResources": "buildResources"
+    },
+    "files": [
+      "electron/**/*",
+      "package.json"
+    ],
+    "extraMetadata": {
+      "main": "electron/main.js"
+    },
+    "asar": true,
+    "publish": null,
+    "extraResources": [
+      {
+        "from": "frontend/dist",
+        "to": "frontend/dist"
+      },
+      {
+        "from": "parse-service/server.js",
+        "to": "parse-service/server.js"
+      },
+      {
+        "from": "parse-service/pipeline.js",
+        "to": "parse-service/pipeline.js"
+      },
+      {
+        "from": "parse-service/extractor.js",
+        "to": "parse-service/extractor.js"
+      },
+      {
+        "from": "parse-service/exporter.js",
+        "to": "parse-service/exporter.js"
+      },
+      {
+        "from": "parse-service/pdfExporter.js",
+        "to": "parse-service/pdfExporter.js"
+      },
+      {
+        "from": "parse-service/package.json",
+        "to": "parse-service/package.json"
+      },
+      {
+        "from": "parse-service/node_modules",
+        "to": "parse-service/node_modules"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "sign": null,
+      "signingHashAlgorithms": [],
+      "extraResources": [
+        {
+          "from": "bin/windows-amd64/bid-maker-server.exe",
+          "to": "bin/bid-maker-server.exe"
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "文制星",
+      "deleteAppDataOnUninstall": false
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.productivity",
+      "extraResources": [
+        {
+          "from": "bin/darwin-amd64/bid-maker-server",
+          "to": "bin/bid-maker-server-x64"
+        },
+        {
+          "from": "bin/darwin-arm64/bid-maker-server",
+          "to": "bin/bid-maker-server-arm64"
+        }
+      ]
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "Office",
+      "extraResources": [
+        {
+          "from": "bin/linux-amd64/bid-maker-server",
+          "to": "bin/bid-maker-server"
+        }
+      ]
+    }
   }
 }

@@ -13,26 +13,117 @@
  * 页码统一走 footerTemplate(第 X 页/共 Y 页),与开关无关.
  */
 
-const puppeteer = require('puppeteer-core');
+// puppeteer-core v25 起为纯 ESM,而本服务是 CJS:
+// 不用顶层 require,改为首次导出 PDF 时动态 import(失败不影响其他功能)。
+let puppeteer = null;
+let puppeteerLoader = null;
+function loadPuppeteer() {
+  if (!puppeteerLoader) {
+    puppeteerLoader = import('puppeteer-core').then((mod) => {
+      puppeteer = mod.default || mod;
+      return puppeteer;
+    });
+  }
+  return puppeteerLoader;
+}
 const fs = require('fs');
 
-const EXE_CANDIDATES = [
-  process.env.CHROME_PATH,
-  '/usr/bin/google-chrome',
-  '/usr/bin/chromium',
-  '/usr/bin/chromium-browser',
-  '/opt/google/chrome/chrome',
-  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-  'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-].filter(Boolean);
+/** 浏览器候选路径,按可用性排序:Chrome > Edge > 其他 Chromium 内核。
+ * 桌面客户端不随包分发 Chrome,依赖用户机器已装任一内核。
+ */
+function chromeCandidates() {
+  const winEnv = (name) => process.env[name];
+  const pf = winEnv('ProgramFiles');
+  const pf86 = winEnv('ProgramFiles(x86)');
+  const local = winEnv('LOCALAPPDATA');
 
-let browserPromise = null;
+  const explicit = [
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/microsoft-edge',
+    '/usr/bin/microsoft-edge-stable',
+    '/opt/google/chrome/chrome',
+    '/opt/google/chrome/google-chrome',
+    '/opt/microsoft/msedge/msedge',
+    '/opt/chromium/chromium',
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary',
+    '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+    '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser',
+    '/Applications/Chromium.app/Contents/MacOS/Chromium',
+  ];
+
+  const win = [
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+    'C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe',
+    ...(pf ? [`${pf}\\Google\\Chrome\\Application\\chrome.exe`, `${pf}\\Microsoft\\Edge\\Application\\msedge.exe`] : []),
+    ...(pf86 ? [`${pf86}\\Google\\Chrome\\Application\\chrome.exe`, `${pf86}\\Microsoft\\Edge\\Application\\msedge.exe`] : []),
+    ...(local ? [`${local}\\Google\\Chrome\\Application\\chrome.exe`, `${local}\\Microsoft\\Edge\\Application\\msedge.exe`] : []),
+  ];
+
+  // puppeteer 的 chrome-headless-shell 缓存(若用户手动 @puppeteer/browsers install 过)
+  const cacheDir = process.env.PUPPETEER_CACHE_DIR ||
+    (process.platform === 'win32' && process.env.LOCALAPPDATA
+      ? `${process.env.LOCALAPPDATA}\\puppeteer`
+      : `${(process.env.HOME || process.env.USERPROFILE || '')}/.cache/puppeteer`);
+  const headlessShell = chromeHeadlessShellCache(cacheDir);
+
+  return [process.env.CHROME_PATH, ...headlessShell, ...(process.platform === 'win32' ? win : explicit)].filter(Boolean);
+}
+
+// 在 puppeteer 缓存目录里找 chrome-headless-shell / chrome-* 可执行文件
+function chromeHeadlessShellCache(dir) {
+  const out = [];
+  let entries = [];
+  try { entries = fs.readdirSync(dir); } catch { return out; }
+  for (const name of entries) {
+    const base = `${dir}/${name}`;
+    // chrome-headless-shell-xxx/chrome-headless-shell-linux64/chrome-headless-shell
+    // chrome-xxx/chrome-linux/chrome
+    try {
+      for (const rel of [
+        `chrome-headless-shell-linux64/chrome-headless-shell`,
+        `chrome-headless-shell-linux-arm64/chrome-headless-shell`,
+        `chrome-headless-shell-win64/chrome-headless-shell.exe`,
+        `chrome-headless-shell-win-arm64/chrome-headless-shell.exe`,
+        `chrome-headless-shell-mac-x64/chrome-headless-shell`,
+        `chrome-headless-shell-mac-arm64/chrome-headless-shell`,
+        `chrome-linux/chrome`,
+        `chrome-linux64/chrome`,
+        `chrome-win64/chrome.exe`,
+        `chrome-win-arm64/chrome.exe`,
+        `chrome-mac-x64/Google Chrome.app/Contents/MacOS/Google Chrome`,
+        `chrome-mac-arm64/Google Chrome.app/Contents/MacOS/Google Chrome`,
+      ]) {
+        out.push(`${base}/${rel}`);
+      }
+    } catch { /* ignore */ }
+  }
+  return out;
+}
+
+let cachedChrome = null;
+let chromeResolved = false;
 
 function resolveChrome() {
-  for (const p of EXE_CANDIDATES) {
-    try { fs.accessSync(p, fs.constants.X_OK); return p; } catch { /* next */ }
+  if (chromeResolved) return cachedChrome;
+  for (const p of chromeCandidates()) {
+    try { fs.accessSync(p, fs.constants.X_OK); cachedChrome = p; chromeResolved = true; return p; } catch { /* next */ }
   }
+  cachedChrome = null;
+  chromeResolved = true;
   return null;
+}
+
+/** 浏览器可用性快照,供 /health 上报(缓存后 O(1))。 */
+function getChromeStatus() {
+  const path = resolveChrome();
+  return path ? { available: true, path } : { available: false, hint: '未找到 Chrome/Edge,PDF 导出不可用;可设置 CHROME_PATH 指定可执行文件' };
 }
 
 async function getBrowser() {
@@ -40,9 +131,13 @@ async function getBrowser() {
     browserPromise = (async () => {
       const exe = resolveChrome();
       if (!exe) {
-        throw new Error('未找到可用的 Chrome,请安装 Chrome 或设置 CHROME_PATH 环境变量');
+        const err = new Error('未找到可用的 Chrome/Edge,PDF 导出不可用;请安装浏览器或设置 CHROME_PATH 环境变量');
+        err.code = 'CHROME_NOT_FOUND';
+        err.tried = chromeCandidates();
+        throw err;
       }
-      return puppeteer.launch({
+      const pe = await loadPuppeteer();
+      return pe.launch({
         executablePath: exe,
         args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-dev-shm-usage'],
       });
@@ -229,4 +324,4 @@ async function renderPdf(data, options) {
   }
 }
 
-module.exports = { renderPdf, buildHtml, renderBody };
+module.exports = { renderPdf, buildHtml, renderBody, getChromeStatus };

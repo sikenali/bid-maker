@@ -13,7 +13,7 @@ const express = require('express');
 const multer = require('multer');
 const { parseBidFile } = require('./pipeline');
 const { renderDocx } = require('./exporter');
-const { renderPdf } = require('./pdfExporter');
+const { renderPdf, getChromeStatus } = require('./pdfExporter');
 
 const PORT = parseInt(process.env.PORT || '8000', 10);
 const ALLOWED_EXTS = new Set(['.docx', '.xlsx', '.xlsm', '.pptx', '.pdf', '.md', '.txt', '.csv', '.html']);
@@ -32,7 +32,14 @@ app.use((req, res, next) => {
 });
 
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'bid-parse-service', schema: 'v1', engine: 'node-officeparser' });
+  res.json({
+    status: 'ok',
+    service: 'bid-parse-service',
+    schema: 'v1',
+    engine: 'node-officeparser',
+    // 浏览器探测结果(Electron 主进程据此判断 PDF 导出是否可用;已缓存)
+    pdf: getChromeStatus(),
+  });
 });
 
 app.post('/parse', upload.single('file'), async (req, res) => {
