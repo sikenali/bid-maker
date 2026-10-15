@@ -77,6 +77,7 @@ async function toggleEnabled(tpl: TemplateItem) {
       description: tpl.description,
       keywords: [],
       content: tpl.content || [],
+      enabled: next ? 1 : 0,
     } satisfies any);
     ElMessage.success(next ? `已启用「${tpl.name}」` : `已停用「${tpl.name}」`);
   } catch {
@@ -110,11 +111,12 @@ function parseContentText(text: string): TemplateSection[] {
   const sections: TemplateSection[] = [];
   const lines = text.split('\n').filter(l => l.trim());
   for (const line of lines) {
-    const match = line.match(/^(\d+)[.\s]+(.+)$/);
+    // 支持 1 / 1. / 5.1 / 5.1.3 多级编号,层级=点分段数
+    const match = line.trim().match(/^(\d+(?:\.\d+)*)[.\s、]+(.+)$/);
     if (match) {
-      const level = parseInt(match[1]);
+      const level = Math.min(match[1].split('.').length, 3);
       const title = match[2].trim();
-      sections.push({ title, level, children: [] });
+      if (title) sections.push({ title, level, children: [] });
     }
   }
   return sections;

@@ -181,9 +181,16 @@ onMounted(async () => {
         } catch {}
       }
     settingsStore.fetchModels()
-    // Load templates
-    const tplRes = getTemplateList()
-    templates.value = tplRes.templates || []
+    settingsStore.refresh()
+    // Load templates(仅启用)
+    reloadTemplates()
+    // 当前选中模型若不在可用列表,自动选中首个已启用密钥
+    nextTick(() => {
+      const models = availableModels.value
+      if (models.length > 0 && !models.find(m => m.id === settingsStore.selectedModelId)) {
+        settingsStore.setModel(models[0].id)
+      }
+    })
   } catch (err) {
     console.error('Failed to load session:', err)
     showToast('加载失败，请重试', 'error')
@@ -232,7 +239,7 @@ function handleClickOutside(e: MouseEvent) {
   if (!target.closest('.model-select') && modelDropdownOpen.value) {
     modelDropdownOpen.value = false
   }
-  if (!target.closest('.skill-popup') && !target.closest('.chat-input')) {
+  if (!target.closest('.skill-popup') && !target.closest('.chat-input-wrap')) {
     skillPopupOpen.value = false
     activeSkill.value = null
   }
@@ -242,17 +249,66 @@ function handleClickOutside(e: MouseEvent) {
 }
 
 // ── Template handlers ──────────────────────────────────────────────
+function reloadTemplates() {
+  try {
+    const tplRes = getTemplateList()
+    templates.value = (tplRes.templates || []).filter(t => (t as any).enabled !== 0)
+  } catch {}
+}
+
 function toggleTemplateDropdown() {
+  if (!templateDropdownOpen.value) reloadTemplates()
   templateDropdownOpen.value = !templateDropdownOpen.value
 }
 
 function selectTemplate(id: number) {
   selectedTemplateId.value = id
   templateDropdownOpen.value = false
+  // 勾选后即按模板大纲提取显示,无需再点"生成大纲"
+  applyTemplateOutline()
 }
 
 function clearTemplate() {
   selectedTemplateId.value = null
+}
+
+// 模板嵌套 content → 带 id/parent 的大纲节点树
+function templateToSections(items: TemplateSection[], parentId: string | null, counter: { n: number }): any[] {
+  return (items || []).map((s) => {
+    const id = `sec-tpl-${counter.n++}`
+    return {
+      section_id: id,
+      title: s.title,
+      level: Math.min(Math.max(s.level || 1, 1), 3),
+      order: counter.n,
+      required: true,
+      parent_id: parentId,
+      source: 'template',
+      requirements: [],
+      response_strategy: 'satisfy',
+      response_basis: '',
+      children: templateToSections(s.children || [], id, counter),
+      content: '',
+      status: 'pending',
+    }
+  })
+}
+
+function expandAll(sections: any[]) {
+  for (const s of sections) {
+    outlineExpanded[s.section_id] = true
+    if (s.children?.length) expandAll(s.children)
+  }
+}
+
+function applyTemplateOutline() {
+  const tpl = selectedTemplate.value
+  if (!tpl || !tpl.content || tpl.content.length === 0) return
+  outline.value = templateToSections(tpl.content, null, { n: Date.now() })
+  expandAll(outline.value)
+  activeSectionId.value = ''
+  scheduleOutlineSave()
+  showToast(`已按模板「${tpl.name}」提取大纲`)
 }
 
 const selectedTemplate = computed(() => {
@@ -266,6 +322,7 @@ function handleChatInput(e: Event) {
   const match = value.match(/\/(\S*)$/)
   
   if (match) {
+    if (!skillPopupOpen.value) settingsStore.refresh()
     skillPopupOpen.value = true
     skillPopupFilter.value = match[1]
     skillPopupIndex.value = 0
@@ -295,7 +352,9 @@ function handleSkillKeyDown(e: KeyboardEvent) {
 
 function selectSkill(skill: any) {
   activeSkill.value = skill
-  chatInput.value = ''
+  // 保留 / 之前的已输入文字,选中技能后可继续补充需求
+  const m = chatInput.value.match(/^(.*)\/\S*$/)
+  chatInput.value = m ? m[1] : ''
   skillPopupOpen.value = false
   // Focus back to input
   nextTick(() => {
@@ -533,33 +592,18 @@ async function handleGenerateOutline() {
   if (isGeneratingOutline.value) return
   isGeneratingOutline.value = true
   try {
-    // Use selected template if available
+    // 已选模板:直接按模板大纲提取显示
     if (selectedTemplate.value && selectedTemplate.value.content && selectedTemplate.value.content.length > 0) {
-      const templateSections = selectedTemplate.value.content.map((s: TemplateSection, idx: number) => ({
-        section_id: `sec-${Date.now()}-${idx}`,
-        title: s.title,
-        level: s.level,
-        order: idx,
-        required: true,
-        parent_id: null,
-        source: 'template',
-        requirements: [],
-        response_strategy: 'satisfy',
-        response_basis: '',
-        children: s.children || [],
-        content: '',
-        status: 'pending',
-      }))
-      outline.value = normalizeOutline(templateSections)
-      for (const s of outline.value) outlineExpanded[s.section_id] = true
-      showToast(`已使用模板「${selectedTemplate.value.name}」生成大纲`)
+      applyTemplateOutline()
     } else {
       const res = await runOutlineSkill(props.id, { mode: 'auto' })
-      if (res.data.sections) {
+      if (res.data.sections && res.data.sections.length > 0) {
         outline.value = normalizeOutline(res.data.sections)
         for (const s of outline.value) outlineExpanded[s.section_id] = true
+        showToast('大纲已生成')
+      } else {
+        showToast('解析未提取到章节结构，请上传模板或用混合模式描述需求', 'error')
       }
-      showToast('大纲已生成')
     }
   } catch (err: any) {
     showToast(err?.response?.data?.error || '生成大纲失败', 'error')
@@ -577,35 +621,50 @@ async function handleGenerateSection(sectionId: string) {
   try {
     const es = getGenerateStream(props.id, sectionId)
     sses.push(es)
-    es.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data)
-        if (data.chunk) {
-          const section = findSectionById(outline.value, sectionId)
-          if (section) {
-            const buffer = (sectionBuffers.get(sectionId) || '') + data.chunk
-            sectionBuffers.set(sectionId, buffer)
-            markdown.value = setSectionMarkdownContent(markdown.value || '', section.title, section.level, buffer)
-            if (editorMode.value === 'markdown' && mdEditor.value) {
-              mdEditor.value.commands.setContent(markdown.value)
-            }
-            if (editorMode.value === 'word' && docxEditorRef.value) {
-              syncWordMode()
-            }
-            generationProgress.value = Math.min(95, generationProgress.value + 2)
-          }
-        } else if (data.done) {
-          es.close()
-          sses = sses.filter(x => x !== es)
-          sectionBuffers.delete(sectionId)
-          isGenerating.value = false
-          generationProgress.value = 0
-        }
-      } catch {}
-    }
-    es.onerror = () => {
+    // 后端发送命名 SSE 事件(event: chunk/done/error),必须用 addEventListener;
+    // es.onmessage 仅接收无名 message 事件,在此链路永远不会触发
+    const cleanup = () => {
       es.close()
       sses = sses.filter(x => x !== es)
+    }
+    es.addEventListener('chunk', ((event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data)
+        if (!data.chunk) return
+        const section = findSectionById(outline.value, sectionId)
+        if (section) {
+          const buffer = (sectionBuffers.get(sectionId) || '') + data.chunk
+          sectionBuffers.set(sectionId, buffer)
+          markdown.value = setSectionMarkdownContent(markdown.value || '', section.title, section.level, buffer)
+          if (editorMode.value === 'markdown' && mdEditor.value) {
+            mdEditor.value.commands.setContent(markdown.value)
+          }
+          if (editorMode.value === 'word' && docxEditorRef.value) {
+            syncWordMode()
+          }
+          generationProgress.value = Math.min(95, generationProgress.value + 2)
+        }
+      } catch {}
+    }) as EventListener)
+    es.addEventListener('done', (() => {
+      cleanup()
+      sectionBuffers.delete(sectionId)
+      isGenerating.value = false
+      generationProgress.value = 0
+    }) as EventListener)
+    es.addEventListener('error', ((event: MessageEvent) => {
+      try {
+        const data = JSON.parse((event as MessageEvent).data)
+        showToast(`生成失败：${data.error || '未知错误'}`, 'error')
+      } catch {
+        showToast('生成失败', 'error')
+      }
+      cleanup()
+      isGenerating.value = false
+      generationProgress.value = 0
+    }) as EventListener)
+    es.onerror = () => {
+      cleanup()
       isGenerating.value = false
       generationProgress.value = 0
     }
@@ -631,38 +690,51 @@ async function handleGenerateFull() {
   try {
     const es = getGenerateFullStream(props.id)
     sses.push(es)
-    es.onmessage = (event) => {
+    // 同单章:命名事件必须用 addEventListener,onmessage 收不到
+    const cleanupFull = () => {
+      es.close()
+      sses = sses.filter(x => x !== es)
+    }
+    es.addEventListener('chunk', ((event: MessageEvent) => {
       try {
         const data = JSON.parse(event.data)
-        if (data.chunk) {
-          const section = findSectionById(outline.value, data.section_id)
-          if (section) {
-            const buffer = (sectionBuffers.get(data.section_id) || '') + (data.chunk || '')
-            sectionBuffers.set(data.section_id, buffer)
-            markdown.value = setSectionMarkdownContent(markdown.value || '', section.title, section.level, buffer)
-            if (editorMode.value === 'markdown' && mdEditor.value) {
-              mdEditor.value.commands.setContent(markdown.value)
-            }
-            generationProgress.value = data.progress || Math.min(95, generationProgress.value + 2)
+        if (!data.chunk) return
+        const section = findSectionById(outline.value, data.section_id)
+        if (section) {
+          const buffer = (sectionBuffers.get(data.section_id) || '') + (data.chunk || '')
+          sectionBuffers.set(data.section_id, buffer)
+          markdown.value = setSectionMarkdownContent(markdown.value || '', section.title, section.level, buffer)
+          if (editorMode.value === 'markdown' && mdEditor.value) {
+            mdEditor.value.commands.setContent(markdown.value)
           }
-        } else if (data.progress !== undefined) {
-          generationProgress.value = data.progress
-        } else if (data.done) {
-          es.close()
-          sses = sses.filter(x => x !== es)
-          sectionBuffers.clear()
-          isGenerating.value = false
-          generationProgress.value = 100
-          // Reload session to pick up backend-persisted content
-          setTimeout(() => reloadSession(), 300)
-        } else if (data.error) {
-          es.close()
-          sses = sses.filter(x => x !== es)
-          isGenerating.value = false
-          showToast(`生成失败：${data.error}`, 'error')
+          generationProgress.value = data.progress || Math.min(95, generationProgress.value + 2)
         }
       } catch {}
-    }
+    }) as EventListener)
+    es.addEventListener('progress', ((event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data)
+        if (data.progress !== undefined) generationProgress.value = data.progress
+      } catch {}
+    }) as EventListener)
+    es.addEventListener('done', (() => {
+      cleanupFull()
+      sectionBuffers.clear()
+      isGenerating.value = false
+      generationProgress.value = 100
+      // Reload session to pick up backend-persisted content
+      setTimeout(() => reloadSession(), 300)
+    }) as EventListener)
+    es.addEventListener('error', ((event: MessageEvent) => {
+      try {
+        const data = JSON.parse((event as MessageEvent).data)
+        showToast(`生成失败：${data.error || '未知错误'}`, 'error')
+      } catch {
+        showToast('生成失败', 'error')
+      }
+      cleanupFull()
+      isGenerating.value = false
+    }) as EventListener)
     es.onerror = () => {
       es.close()
       sses = sses.filter(x => x !== es)
@@ -745,7 +817,9 @@ function findSectionById(sections: any[], id: string): any {
 async function handleExport() {
   if (isExporting.value) return
   isExporting.value = true
+  // 先落盘防抖中的编辑,避免最后 ~1.5s 内容丢失
   if (mdSaveTimer) { clearTimeout(mdSaveTimer); mdSaveTimer = null }
+  try { await saveMarkdown(markdown.value) } catch {}
   const title = session.value?.title || '标书'
   const dateStr = new Date().toISOString().slice(0, 10)
   try {
@@ -763,6 +837,13 @@ async function handleExport() {
       showToast('Markdown 导出成功')
     } else {
       const blob = await exportDocx(props.id)
+      // 后端失败时返回 JSON(axios 仍按 blob 解析),需拦截避免存下坏 docx
+      if (blob.type.includes('json')) {
+        let msg = '导出失败，请重试'
+        try { msg = JSON.parse(await blob.text()).error || msg } catch {}
+        showToast(msg, 'error')
+        return
+      }
       saveAs(blob, `${title}_${dateStr}.docx`)
       showToast('Word 导出成功')
     }
@@ -790,7 +871,20 @@ async function handleSendChat() {
   await chatStore.sendMessage(message, activeSectionId.value || undefined, props.id, settingsStore.selectedModelId)
 }
 
+// 中断当前对话/生成(仅断开前端监听,后端任务随连接关闭自行结束)
+function handleStopChat() {
+  sses.forEach(es => { try { es.close() } catch {} })
+  sses = []
+  if (genTimeout) { clearTimeout(genTimeout); genTimeout = null }
+  isGenerating.value = false
+  generationProgress.value = 0
+  sectionBuffers.clear()
+  chatStore.isSending = false
+  showToast('已停止生成')
+}
+
 function toggleModelDropdown() {
+  if (!modelDropdownOpen.value) settingsStore.refresh()
   modelDropdownOpen.value = !modelDropdownOpen.value
 }
 
@@ -1129,6 +1223,14 @@ const OutlineNodeRecursive = defineComponent({
           <span class="model-name">{{ currentModelName }}</span>
           <RiArrowDownSLine size="14" :style="{ transform: modelDropdownOpen ? 'rotate(180deg)' : '' }" />
         </div>
+        <button
+          v-if="chatStore.messages.length > 0 && !chatStore.isSending"
+          class="chat-clear-btn"
+          @click="chatStore.clearMessages()"
+          title="清空对话"
+        >
+          <RiDeleteBinLine size="15" />
+        </button>
         <div v-if="modelDropdownOpen" class="model-dropdown" @click.stop>
           <div
             v-for="m in availableModels"
@@ -1180,13 +1282,21 @@ const OutlineNodeRecursive = defineComponent({
             :disabled="chatStore.isSending"
           />
           <button
+            v-if="chatStore.isSending"
+            class="send-btn send-btn-stop"
+            @click="handleStopChat"
+            title="停止"
+          >
+            <span class="stop-square" />
+          </button>
+          <button
+            v-else
             class="send-btn"
             @click="handleSendChat"
-            :disabled="!chatInput.trim() || chatStore.isSending"
+            :disabled="!chatInput.trim()"
             title="发送"
           >
-            <RiLoader4Line v-if="chatStore.isSending" size="16" class="spin-icon" />
-            <RiSendPlaneFill v-else size="16" />
+            <RiSendPlaneFill size="16" />
           </button>
         </div>
         <div v-if="skillPopupOpen && filteredSkills.length > 0" class="skill-popup">
@@ -2245,6 +2355,42 @@ const OutlineNodeRecursive = defineComponent({
   opacity: 0.4;
   cursor: not-allowed;
   background: var(--color-text-muted);
+}
+
+.send-btn-stop {
+  background: var(--color-text-secondary);
+}
+
+.send-btn-stop:hover {
+  background: var(--color-error);
+}
+
+.stop-square {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  background: #fff;
+}
+
+.chat-clear-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-white);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.chat-clear-btn:hover {
+  color: var(--color-error);
+  border-color: var(--color-error);
+  background: var(--color-error-soft);
 }
 
 /* ── Toast ─────────────────────────────────────────────────── */

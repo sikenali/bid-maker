@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -282,13 +283,15 @@ func (h *Handler) RunGenerateSection(c *gin.Context) {
 	taskID := uuid.New().String()
 	h.taskQueue.CreateTask(taskID, sessionID, "generate_section", req.SectionID)
 	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
 		h.taskQueue.UpdateStatus(taskID, "running")
 		h.taskQueue.UpdateProgress(taskID, 10)
 		messages := []map[string]string{
 			{"role": "system", "content": "你是一个专业的标书编写助手。请根据大纲章节要求，撰写专业、完整的标书内容。"},
 			{"role": "user", "content": fmt.Sprintf("请撰写章节：%s", req.SectionID)},
 		}
-		content, err := h.gateway.Chat(c.Request.Context(), req.Provider, messages, req.Model)
+		content, err := h.gateway.Chat(ctx, req.Provider, messages, req.Model)
 		if err != nil {
 			h.taskQueue.UpdateError(taskID, err.Error())
 			return
@@ -324,6 +327,8 @@ func (h *Handler) RunGenerateFull(c *gin.Context) {
 	h.taskQueue.CreateTask(taskID, sessionID, "generate_full", "")
 
 	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+		defer cancel()
 		h.taskQueue.UpdateStatus(taskID, "running")
 		sections := flattenSections(session.Outline.Sections)
 		total := len(sections)
@@ -344,7 +349,7 @@ func (h *Handler) RunGenerateFull(c *gin.Context) {
 				{"role": "system", "content": "你是一名资深的投标文件撰写专家。请根据大纲章节要求，撰写专业、完整、可直接使用的标书内容。输出纯文本，不要加额外的Markdown标题。"},
 				{"role": "user", "content": prompt},
 			}
-			content, err := h.gateway.Chat(c.Request.Context(), req.Provider, messages, req.Model)
+			content, err := h.gateway.Chat(ctx, req.Provider, messages, req.Model)
 			if err != nil {
 				h.sessionStore.MarkSectionFailed(sessionID, sec.SectionID, err.Error())
 				errMsg = fmt.Sprintf("section %s: %s", sec.Title, err.Error())
@@ -422,7 +427,7 @@ func buildSectionPrompt(session *model.Session, sec *model.Section) string {
 }
 
 func (h *Handler) GenerateSectionStream(c *gin.Context) {
-	c.Param("id")
+	sessionID := c.Param("id")
 	sectionID := c.Query("section_id")
 	provider := c.Query("provider")
 	modelName := c.Query("model")
@@ -434,9 +439,19 @@ func (h *Handler) GenerateSectionStream(c *gin.Context) {
 	c.Header("Cache-Control", "no-cache")
 	c.Header("Connection", "keep-alive")
 	fmt.Fprintf(c.Writer, "event: start\ndata: %s\n\n", jsonStr(gin.H{"section_id": sectionID}))
+	// 带上章节标题与解析上下文,避免只传 ID 导致内容泛化
+	userPrompt := fmt.Sprintf("请撰写章节：%s", sectionID)
+	if session, ok := h.sessionStore.GetSession(sessionID); ok && session.Outline != nil {
+		for _, s := range flattenSections(session.Outline.Sections) {
+			if s.SectionID == sectionID {
+				userPrompt = buildSectionPrompt(session, s)
+				break
+			}
+		}
+	}
 	messages := []map[string]string{
 		{"role": "system", "content": "你是一个专业的标书编写助手。请根据大纲章节要求，撰写专业、完整的标书内容。"},
-		{"role": "user", "content": fmt.Sprintf("请撰写章节：%s", sectionID)},
+		{"role": "user", "content": userPrompt},
 	}
 	err := h.gateway.ChatStream(c.Request.Context(), provider, messages, modelName, func(chunk string) {
 		fmt.Fprintf(c.Writer, "event: chunk\ndata: %s\n\n", jsonStr(gin.H{"chunk": chunk, "section_id": sectionID}))

@@ -1,12 +1,9 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { useRouter } from 'vue-router';
 import { ElMessage } from '@/utils/toast';
-import { createSession, runParseSkill } from '@/api/client';
+import { createSession, runParseSkill, getTaskStatus } from '@/api/client';
 import StepStrip from '@/components/StepStrip.vue';
 import { UiTip } from '@/components/ui';
-
-const router = useRouter();
 
 interface Step {
   key: number;
@@ -57,6 +54,10 @@ function validateFile(file: File): boolean {
     ElMessage.warning('不支持的格式，请上传招标文件（docx/pdf/md/txt/xlsx/csv/html）');
     return false;
   }
+  if (file.size > 50 * 1024 * 1024) {
+    ElMessage.warning('文件超过 50MB 上限，请压缩后重试');
+    return false;
+  }
   return true;
 }
 
@@ -102,18 +103,47 @@ async function startUpload(file: File) {
     const sessionRes = await createSession({ title });
     const sessionId = sessionRes.data.session_id;
 
-    // 2. Upload and parse
-    await runParseSkill(sessionId, file);
+    // 2. Upload and parse(异步任务,轮询等待完成后再跳转,避免编辑页拿到空解析结果)
+    const parseRes = await runParseSkill(sessionId, file);
+    const taskId = parseRes.data?.task_id || '';
+    if (taskId) {
+      await waitParseDone(taskId);
+    }
 
-    // 3. Navigate to editor
-    setTimeout(() => {
-      router.push(`/editor/${sessionId}`);
-    }, 500);
+    // 3. Notify parent to navigate to editor
+    emit('success', sessionId);
   } catch (err: any) {
     const msg = err?.response?.data?.error || err?.message || '上传失败，请重试';
     ElMessage.error(msg);
     uploading.value = false;
     selectedFile.value = null;
+  }
+}
+
+function sleep(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
+// 轮询解析任务:completed→通过,failed→抛错,120s 超时
+async function waitParseDone(taskId: string): Promise<void> {
+  const deadline = Date.now() + 120000;
+  for (;;) {
+    await sleep(1500);
+    let task: any = null;
+    try {
+      const res = await getTaskStatus(taskId);
+      task = res.data;
+    } catch {
+      continue;
+    }
+    if (!task || task.status === 'running' || task.status === 'pending' || task.status === 'started') {
+      if (Date.now() > deadline) throw new Error('解析超时，请重试');
+      continue;
+    }
+    if (task.status === 'failed') {
+      throw new Error(task.error || '解析失败，请检查文件格式后重试');
+    }
+    return;
   }
 }
 

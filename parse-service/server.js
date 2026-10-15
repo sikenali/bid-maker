@@ -15,7 +15,7 @@ const { parseBidFile } = require('./pipeline');
 const { renderDocx } = require('./exporter');
 
 const PORT = parseInt(process.env.PORT || '8000', 10);
-const ALLOWED_EXTS = new Set(['.docx', '.xlsx', '.xlsm', '.pptx', '.pdf']);
+const ALLOWED_EXTS = new Set(['.docx', '.xlsx', '.xlsm', '.pptx', '.pdf', '.md', '.txt', '.csv', '.html']);
 const MAX_BYTES = 50 * 1024 * 1024;
 
 const app = express();
@@ -40,10 +40,9 @@ app.post('/parse', upload.single('file'), async (req, res) => {
       return res.status(400).json({ error: '空文件' });
     }
     const lower = (req.file.originalname || '').toLowerCase();
-    const ext = Object.keys({ '.docx': 1, '.xlsx': 1, '.xlsm': 1, '.pptx': 1, '.pdf': 1 })
-      .find((e) => lower.endsWith(e));
+    const ext = [...ALLOWED_EXTS].find((e) => lower.endsWith(e));
     if (!ext) {
-      return res.status(400).json({ error: `不支持的文件格式:仅支持 .docx/.xlsx/.pptx/.pdf` });
+      return res.status(400).json({ error: `不支持的文件格式:仅支持 ${[...ALLOWED_EXTS].join('/')}` });
     }
     const result = await parseBidFile(req.file.buffer, {
       titleHint: req.body.title || req.query.title || '',

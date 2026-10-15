@@ -101,6 +101,7 @@ async function handleSave() {
       provider: customApiFormat.value === 'anthropic' ? 'Anthropic (自定义)' : 'OpenAI (自定义)',
       model: customModelId.value.trim(),
       base_url: customEndpoint.value.trim(),
+      format: customApiFormat.value,
     };
     if (key) payload.api_key = key;
     try {
@@ -125,6 +126,7 @@ async function handleSave() {
     const payload: any = {
       provider: selectedProvider.value,
       model: selectedModelName.value,
+      format: selectedProvider.value === 'Anthropic' ? 'anthropic' : 'openai',
     };
     if (key) payload.api_key = key;
     try {

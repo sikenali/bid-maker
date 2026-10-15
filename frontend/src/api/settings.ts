@@ -82,6 +82,7 @@ export interface ApiKeyData {
   model: string;
   api_key: string;
   base_url?: string;
+  format?: string;
   enabled?: number;
   createdAt?: number;
 }
@@ -90,7 +91,7 @@ export function getApiKeyList(): ApiKeyData[] {
   return getSetting<ApiKeyData[]>('apikeys', []);
 }
 
-export async function addApiKey(data: { provider: string; model: string; api_key: string; base_url?: string }): Promise<void> {
+export async function addApiKey(data: { provider: string; model: string; api_key: string; base_url?: string; format?: string }): Promise<void> {
   const keys = getSetting<ApiKeyData[]>('apikeys', []);
   keys.push({
     ...data,
@@ -122,6 +123,7 @@ export async function testApiKey(data: { id?: string; provider?: string; model?:
   const key = data.id ? keys.find(k => k.id === data.id) : null;
   const apiKey = data.key || key?.api_key || '';
   const provider = data.provider || key?.provider || '';
+  const format = data.format || (key as any)?.format || 'openai';
   
   if (!apiKey) return { available: false, error: '未配置 API Key' };
   
@@ -134,7 +136,7 @@ export async function testApiKey(data: { id?: string; provider?: string; model?:
         model: data.model || key?.model || '',
         key: apiKey,
         endpoint: data.endpoint || key?.base_url || '',
-        format: data.format || 'openai',
+        format,
       }),
     });
     return await resp.json();
@@ -143,7 +145,7 @@ export async function testApiKey(data: { id?: string; provider?: string; model?:
   }
 }
 
-export async function updateApiKey(id: string, data: { provider?: string; model?: string; api_key?: string; base_url?: string }): Promise<void> {
+export async function updateApiKey(id: string, data: { provider?: string; model?: string; api_key?: string; base_url?: string; format?: string }): Promise<void> {
   const keys = getSetting<ApiKeyData[]>('apikeys', []);
   const key = keys.find(k => k.id === id);
   if (key) {
@@ -151,6 +153,7 @@ export async function updateApiKey(id: string, data: { provider?: string; model?
     if (data.model) key.model = data.model;
     if (data.api_key) key.api_key = data.api_key;
     if (data.base_url !== undefined) key.base_url = data.base_url;
+    if (data.format !== undefined) key.format = data.format;
     setSetting('apikeys', keys);
   }
 }
@@ -170,6 +173,7 @@ export interface TemplateData {
   description: string;
   keywords: string[];
   content: TemplateSection[];
+  enabled?: number;
   createdAt?: number;
 }
 

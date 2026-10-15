@@ -120,18 +120,59 @@ function extractFromAst(ast) {
 }
 
 const EXT_BY_NAME = { '.docx': 'docx', '.xlsx': 'xlsx', '.xlsm': 'xlsx', '.pptx': 'pptx', '.pdf': 'pdf' };
+// 纯文本格式:不走 officeparser,直接按行拆段(与前端白名单对齐)
+const TEXT_EXTS = new Set(['.md', '.txt', '.csv', '.html']);
+
+function extractFromText(text, ext) {
+  let lines = String(text || '').replace(/\r/g, '').split('\n');
+  if (ext === '.html') {
+    lines = lines.map((l) => l.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' '));
+  }
+  const paragraphs = [];
+  const tables = [];
+  let currentSection = '';
+  if (ext === '.csv') {
+    const grid = lines.filter((l) => l.trim()).map((l) => l.split(',').map((c) => c.trim()));
+    if (grid.length) {
+      tables.push(grid);
+      for (const row of grid) {
+        const t = row.filter(Boolean).join(' | ');
+        if (t) paragraphs.push({ text: t, style: 'Table', heading_level: 0, section: currentSection, table_idx: 0 });
+      }
+      return { paragraphs, tables, full_text: paragraphs.map((p) => p.text).join('\n') };
+    }
+  }
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+    // Markdown 标题优先
+    const hm = /^(#{1,6})\s+(.+)/.exec(line);
+    const level = hm ? Math.min(hm[1].length, 3) : guessLevel(line, '');
+    const clean = hm ? hm[2].trim() : line;
+    if (!clean) continue;
+    if (level === 1 || level === 2) currentSection = clean.slice(0, 60);
+    paragraphs.push({ text: clean, style: hm ? 'Heading' : '', heading_level: level, section: currentSection, table_idx: -1 });
+  }
+  return { paragraphs, tables, full_text: paragraphs.map((p) => p.text).join('\n') };
+}
 
 async function extract(input, filename) {
   // input: 文件路径或 Buffer;filename 用于 Buffer 时的类型推断
   const officeParser = require('officeparser');
+  const fs = require('fs');
   const name = (typeof input === 'string' ? input : filename || '').toLowerCase();
-  const ext = Object.keys(EXT_BY_NAME).find((e) => name.endsWith(e));
+  const ext = Object.keys(EXT_BY_NAME).find((e) => name.endsWith(e))
+    || [...TEXT_EXTS].find((e) => name.endsWith(e));
   if (!name || !ext) {
-    throw new Error(`不支持的文件格式:仅支持 ${Object.keys(EXT_BY_NAME).join('/')}`);
+    throw new Error(`不支持的文件格式:仅支持 ${[...Object.keys(EXT_BY_NAME), ...TEXT_EXTS].join('/')}`);
+  }
+  if (TEXT_EXTS.has(ext)) {
+    const buf = Buffer.isBuffer(input) ? input : fs.readFileSync(input);
+    return extractFromText(buf.toString('utf-8'), ext);
   }
   const opts = { fileType: EXT_BY_NAME[ext] };
   const ast = await officeParser.parseOffice(input, opts);
   return extractFromAst(ast);
 }
 
-module.exports = { extract, extractFromAst, guessLevel };
+module.exports = { extract, extractFromAst, extractFromText, guessLevel };
