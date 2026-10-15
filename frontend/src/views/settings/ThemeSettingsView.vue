@@ -96,7 +96,8 @@ function selectAccent(key: string) {
 function selectLayout(key: string) {
   selectedLayout.value = key;
   localStorage.setItem('layout', key);
-  ElMessage.success(`已切换布局：${layouts.find(l => l.key === key)?.name || ''}`);
+  ElMessage.success(`已切换布局：${layouts.find(l => l.key === key)?.name || ''}，页面将刷新以生效`);
+  setTimeout(() => window.location.reload(), 800);
 }
 
 function resetAll() {
