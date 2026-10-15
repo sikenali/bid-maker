@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, reactive, nextTick, defineComponent, h } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, reactive, nextTick, defineComponent, h, type PropType } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   getSession,
   updateSession,
+  updateOutline,
   generateFull,
   getGenerateFullStream,
   runOutlineSkill,
@@ -38,6 +39,9 @@ import {
   RiPlayCircleLine,
   RiArrowDropRightLine,
   RiArrowDropDownLine,
+  RiMoreLine,
+  RiAddLine,
+  RiArrowDownLine,
 } from '@remixicon/vue'
 
 const props = defineProps<{ id: string }>()
@@ -58,6 +62,7 @@ const isExporting = ref(false)
 const editorMode = ref<'word' | 'markdown'>('word')
 const isOutlineCollapsed = ref(false)
 const outlineExpanded = reactive<Record<string, boolean>>({})
+const openMenuId = ref<string | null>(null)
 const chatInput = ref('')
 const modelDropdownOpen = ref(false)
 const lastSync = ref<string>('')
@@ -191,6 +196,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   if (mdSaveTimer) clearTimeout(mdSaveTimer)
+  if (outlineSaveTimer) clearTimeout(outlineSaveTimer)
   if (wordSaveTimer) clearTimeout(wordSaveTimer)
   if (genTimeout) clearTimeout(genTimeout)
   sses.forEach(es => es.close())
@@ -229,6 +235,9 @@ function handleClickOutside(e: MouseEvent) {
   if (!target.closest('.skill-popup') && !target.closest('.chat-input')) {
     skillPopupOpen.value = false
     activeSkill.value = null
+  }
+  if (!target.closest('.node-menu-wrap') && openMenuId.value) {
+    openMenuId.value = null
   }
 }
 
@@ -360,6 +369,141 @@ function toggleExpand(id: string) {
   outlineExpanded[id] = !outlineExpanded[id]
 }
 
+function toggleMenu(id: string) {
+  openMenuId.value = openMenuId.value === id ? null : id
+}
+
+// ── Outline persistence ────────────────────────────────────────────
+// 后端要求扁平结构(children 为 id 数组),嵌套对象需拍平后 PUT
+let outlineSaveTimer: ReturnType<typeof setTimeout> | null = null
+function flattenOutline(sections: any[]): any[] {
+  const out: any[] = []
+  const walk = (nodes: any[]) => {
+    for (const n of nodes) {
+      const kids: any[] = Array.isArray(n.children) ? n.children : []
+      out.push({ ...n, children: kids.map((c: any) => c.section_id) })
+      if (kids.length) walk(kids)
+    }
+  }
+  walk(sections)
+  return out
+}
+
+function scheduleOutlineSave() {
+  if (outlineSaveTimer) clearTimeout(outlineSaveTimer)
+  outlineSaveTimer = setTimeout(saveOutline, 800)
+}
+
+async function saveOutline() {
+  try {
+    await updateOutline(props.id, {
+      outline_id: session.value?.outline?.outline_id || `outline-${Date.now()}`,
+      source_mode: session.value?.outline?.source_mode || 'custom',
+      locked: !!session.value?.outline?.locked,
+      sections: flattenOutline(outline.value),
+    } as any)
+    lastSync.value = '大纲已同步'
+  } catch (e: any) {
+    showToast(e?.response?.data?.error || '大纲同步失败', 'error')
+  }
+}
+
+function isOutlineLocked(): boolean {
+  if (session.value?.outline?.locked) {
+    showToast('大纲已锁定，无法修改结构', 'error')
+    return true
+  }
+  return false
+}
+
+// 递归查找节点所在容器数组及其下标
+function findNodeContainer(sections: any[], id: string): { arr: any[]; idx: number } | null {
+  for (let i = 0; i < sections.length; i++) {
+    if (sections[i].section_id === id) return { arr: sections, idx: i }
+    if (sections[i].children?.length) {
+      const r = findNodeContainer(sections[i].children, id)
+      if (r) return r
+    }
+  }
+  return null
+}
+
+function maxOrder(sections: any[]): number {
+  let m = 0
+  const walk = (nodes: any[]) => {
+    for (const n of nodes) {
+      if (typeof n.order === 'number' && n.order > m) m = n.order
+      if (n.children?.length) walk(n.children)
+    }
+  }
+  walk(sections)
+  return m
+}
+
+function addLevelDelta(node: any, delta: number) {
+  node.level = Math.min(Math.max(node.level + delta, 1), 3)
+  for (const c of node.children || []) addLevelDelta(c, delta)
+}
+
+// 降级:挂到上一兄弟节点下;无上一兄弟则原地加深一级(上限 L3)
+function demoteSection(id: string) {
+  openMenuId.value = null
+  if (isOutlineLocked()) return
+  const found = findNodeContainer(outline.value, id)
+  if (!found) return
+  const { arr, idx } = found
+  const node = arr[idx]
+  if (idx > 0) {
+    const prev = arr[idx - 1]
+    const oldLevel = node.level
+    arr.splice(idx, 1)
+    prev.children = prev.children || []
+    prev.children.push(node)
+    node.parent_id = prev.section_id
+    node.level = Math.min(prev.level + 1, 3)
+    for (const c of node.children || []) addLevelDelta(c, node.level - oldLevel)
+    outlineExpanded[prev.section_id] = true
+  } else {
+    if (node.level >= 3) {
+      showToast('已是最深层级', 'error')
+      return
+    }
+    addLevelDelta(node, 1)
+  }
+  activeSectionId.value = id
+  scheduleOutlineSave()
+}
+
+// 新增:在当前节点后插入同级章节
+function addSiblingSection(id: string) {
+  openMenuId.value = null
+  if (isOutlineLocked()) return
+  const found = findNodeContainer(outline.value, id)
+  if (!found) return
+  const { arr, idx } = found
+  const ref = arr[idx]
+  const node = {
+    section_id: `sec-custom-${Date.now()}`,
+    title: '新章节',
+    level: ref.level,
+    order: maxOrder(outline.value) + 1,
+    required: false,
+    parent_id: ref.parent_id || null,
+    source: 'manual',
+    requirements: [],
+    response_strategy: 'satisfy',
+    response_basis: '',
+    children: [],
+    content: '',
+    status: 'pending',
+  }
+  arr.splice(idx + 1, 0, node)
+  outlineExpanded[node.section_id] = true
+  activeSectionId.value = node.section_id
+  scheduleOutlineSave()
+  showToast('已新增章节，可点击标题编辑正文')
+}
+
 function selectSection(sectionId: string) {
   activeSectionId.value = sectionId
   nextTick(() => {
@@ -371,7 +515,11 @@ function selectSection(sectionId: string) {
 }
 
 function deleteSection(sectionId: string) {
+  openMenuId.value = null
+  if (isOutlineLocked()) return
   outline.value = removeSection(outline.value, sectionId)
+  if (activeSectionId.value === sectionId) activeSectionId.value = ''
+  scheduleOutlineSave()
 }
 
 function removeSection(sections: any[], id: string): any[] {
@@ -718,8 +866,9 @@ const OutlineNodeRecursive = defineComponent({
     level: { type: Number, required: true },
     activeId: { type: String, default: '' },
     expanded: { type: Object, default: () => ({}) },
+    openMenuId: { type: String as PropType<string | null>, default: null },
   },
-  emits: ['select', 'toggle', 'delete', 'generate'],
+  emits: ['select', 'toggle', 'delete', 'generate', 'menu', 'demote', 'add'],
   setup(props: any, { emit }: any) {
     // @ts-ignore
     return (): any =>
@@ -751,6 +900,50 @@ const OutlineNodeRecursive = defineComponent({
                 h('span', { class: 'node-title' }, s.title),
                 h(
                   'span',
+                  { class: 'node-menu-wrap', onClick: (e: MouseEvent) => e.stopPropagation() },
+                  [
+                    h(
+                      'button',
+                      {
+                        class: ['node-menu-btn', { open: props.openMenuId === s.section_id }],
+                        title: '更多操作',
+                        onClick: (e: MouseEvent) => { e.stopPropagation(); emit('menu', s.section_id) },
+                      },
+                      [h(RiMoreLine, { size: '16' })],
+                    ),
+                    props.openMenuId === s.section_id
+                      ? h('div', { class: 'node-menu' }, [
+                          h(
+                            'button',
+                            {
+                              class: 'node-menu-item',
+                              onClick: (e: MouseEvent) => { e.stopPropagation(); emit('demote', s.section_id) },
+                            },
+                            [h(RiArrowDownLine, { size: '15' }), h('span', '降级')],
+                          ),
+                          h(
+                            'button',
+                            {
+                              class: 'node-menu-item',
+                              onClick: (e: MouseEvent) => { e.stopPropagation(); emit('add', s.section_id) },
+                            },
+                            [h(RiAddLine, { size: '15' }), h('span', '新增')],
+                          ),
+                          h('div', { class: 'node-menu-divider' }),
+                          h(
+                            'button',
+                            {
+                              class: 'node-menu-item danger',
+                              onClick: (e: MouseEvent) => { e.stopPropagation(); emit('delete', s.section_id) },
+                            },
+                            [h(RiDeleteBinLine, { size: '15' }), h('span', '删除')],
+                          ),
+                        ])
+                      : null,
+                  ],
+                ),
+                h(
+                  'span',
                   { class: 'node-actions' },
                   [
                     h(
@@ -778,10 +971,14 @@ const OutlineNodeRecursive = defineComponent({
                   level: props.level + 1,
                   activeId: props.activeId,
                   expanded: props.expanded,
+                  openMenuId: props.openMenuId,
                   onSelect: (id: string) => emit('select', id),
                   onToggle: (id: string) => emit('toggle', id),
                   onDelete: (id: string) => emit('delete', id),
                   onGenerate: (id: string) => emit('generate', id),
+                  onMenu: (id: string) => emit('menu', id),
+                  onDemote: (id: string) => emit('demote', id),
+                  onAdd: (id: string) => emit('add', id),
                 })
               : null,
           ],
@@ -814,10 +1011,14 @@ const OutlineNodeRecursive = defineComponent({
           :level="0"
           :active-id="activeSectionId"
           :expanded="outlineExpanded"
+          :open-menu-id="openMenuId"
           @select="selectSection"
           @toggle="toggleExpand"
           @delete="deleteSection"
           @generate="handleGenerateSection"
+          @menu="toggleMenu"
+          @demote="demoteSection"
+          @add="addSiblingSection"
         />
       </div>
 
@@ -1210,6 +1411,87 @@ const OutlineNodeRecursive = defineComponent({
 .action-btn-danger:hover {
   background: var(--color-error-soft);
   color: var(--color-error);
+}
+
+/* ── 节点更多操作菜单(圆圈三点按钮 + 下拉子菜单) ─────────────────── */
+.node-menu-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.node-menu-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.node-menu-btn:hover,
+.node-menu-btn.open {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: var(--color-bg-secondary);
+}
+
+.node-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  min-width: 132px;
+  background: var(--color-bg-white);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+  padding: 6px;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.node-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 14px;
+  font-family: "SourceHanSans-Regular", var(--font-family-cn);
+  color: var(--color-text-body);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.node-menu-item:hover {
+  background: var(--color-bg-secondary);
+}
+
+.node-menu-item.danger {
+  color: var(--color-error);
+}
+
+.node-menu-item.danger:hover {
+  background: var(--color-error-soft);
+}
+
+.node-menu-divider {
+  height: 1px;
+  background: var(--color-border-soft);
+  margin: 4px 6px;
 }
 
 .outline-footer {
