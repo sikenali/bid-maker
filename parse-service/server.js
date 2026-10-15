@@ -13,6 +13,7 @@ const express = require('express');
 const multer = require('multer');
 const { parseBidFile } = require('./pipeline');
 const { renderDocx } = require('./exporter');
+const { renderPdf } = require('./pdfExporter');
 
 const PORT = parseInt(process.env.PORT || '8000', 10);
 const ALLOWED_EXTS = new Set(['.docx', '.xlsx', '.xlsm', '.pptx', '.pdf', '.md', '.txt', '.csv', '.html']);
@@ -68,6 +69,20 @@ app.post('/export', (req, res) => {
     res.send(buf);
   } catch (e) {
     res.status(500).json({ error: `导出失败: ${e.message || e}` });
+  }
+});
+
+app.post('/export-pdf', async (req, res) => {
+  try {
+    const { title, bid_no, export_time, sections, options } = req.body || {};
+    if (!Array.isArray(sections) || !sections.length) {
+      return res.status(400).json({ error: 'sections 非空数组必填' });
+    }
+    const buf = await renderPdf({ title, bid_no, export_time, sections }, options);
+    res.set('Content-Type', 'application/pdf');
+    res.send(buf);
+  } catch (e) {
+    res.status(500).json({ error: `PDF 导出失败: ${e.message || e}` });
   }
 });
 

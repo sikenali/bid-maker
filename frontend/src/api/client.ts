@@ -224,6 +224,18 @@ export const getMarkdown = (sessionId: string) =>
 export const exportDocx = (sessionId: string): Promise<Blob> =>
   api.get(`/sessions/${sessionId}/export`, { responseType: 'blob' }).then(r => r.data)
 
+export const exportPdf = (sessionId: string, options?: {
+  high_res?: number; bookmarks?: number; watermark?: number; watermark_text?: string
+}): Promise<Blob> => {
+  const params = new URLSearchParams()
+  if (options?.high_res !== undefined) params.set('high_res', String(options.high_res))
+  if (options?.bookmarks !== undefined) params.set('bookmarks', String(options.bookmarks))
+  if (options?.watermark !== undefined) params.set('watermark', String(options.watermark))
+  if (options?.watermark_text !== undefined) params.set('watermark_text', options.watermark_text)
+  const qs = params.toString()
+  return api.get(`/sessions/${sessionId}/export/pdf${qs ? `?${qs}` : ''}`, { responseType: 'blob' }).then(r => r.data)
+}
+
 export const getTaskStatus = (taskId: string) =>
   api.get<Task>(`/tasks/${taskId}`)
 

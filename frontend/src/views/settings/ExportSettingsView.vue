@@ -15,7 +15,7 @@ interface ExportItem {
 
 const formats: ExportItem[] = [
   { key: 'docx', name: 'Word 文档 ·.docx', desc: '保留可编辑正文，商用文库首选', iconText: 'W', iconColor: '#2B579A' },
-  { key: 'pdf', name: 'PDF 文档 ·.pdf', desc: '矢量高清，适用于打印与送审（即将上线）', iconText: 'PDF', iconColor: '#C0392B' },
+  { key: 'pdf', name: 'PDF 文档 ·.pdf', desc: '矢量高清，适用于打印与送审', iconText: 'PDF', iconColor: '#C0392B' },
   { key: 'markdown', name: 'Markdown ·.md', desc: '轻盈纯文本，便于二次编辑', iconText: 'MD', iconColor: '#3A4A63' },
 ];
 
@@ -136,7 +136,6 @@ async function resetAll() {
         <div v-for="fmt in formats" :key="fmt.key" class="format-cell">
           <UiSelectCard
             :selected="selectedFormat === fmt.key"
-            :disabled="fmt.key === 'pdf'"
             :title="fmt.name"
             :desc="fmt.desc"
             :icon-text="fmt.iconText"
@@ -173,29 +172,29 @@ async function resetAll() {
       </div>
     </div>
 
-    <!-- PDF 导出设置(PDF 导出引擎未上线,选项置灰保留) -->
+    <!-- PDF 导出设置 -->
     <div class="section-card">
-      <div class="card-title">PDF 导出设置 <span class="coming-badge">即将上线</span></div>
+      <div class="card-title">PDF 导出设置</div>
       <div class="setting-item">
         <div class="setting-info">
           <div class="setting-name">矢量高清输出 300dpi</div>
           <div class="setting-desc">文字与图片均不压缩，适合打印装订后送审</div>
         </div>
-        <UiSwitch v-model="pdfSettings.vectorHD" disabled />
+        <UiSwitch v-model="pdfSettings.vectorHD" />
       </div>
       <div class="setting-item">
         <div class="setting-info">
           <div class="setting-name">保留书签导航树</div>
           <div class="setting-desc">按章节层级生成左侧书签，评委可快速跳转</div>
         </div>
-        <UiSwitch v-model="pdfSettings.keepBookmarks" disabled />
+        <UiSwitch v-model="pdfSettings.keepBookmarks" />
       </div>
       <div class="setting-item">
         <div class="setting-info">
           <div class="setting-name">添加内部稿水印</div>
           <div class="setting-desc">叠加「{{ BRAND_NAME }} · 内部稿」对角淡色水印</div>
         </div>
-        <UiSwitch v-model="pdfSettings.addWatermark" disabled />
+        <UiSwitch v-model="pdfSettings.addWatermark" />
       </div>
     </div>
 

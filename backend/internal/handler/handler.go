@@ -49,6 +49,7 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 		api.GET("/sessions/:id/skills/generate/stream", h.GenerateSectionStream)
 		api.GET("/sessions/:id/skills/generate/full/stream", h.GenerateFullStream)
 		api.GET("/sessions/:id/export", h.ExportDocument)
+		api.GET("/sessions/:id/export/pdf", h.ExportPDF)
 		api.GET("/sessions/:id/export/markdown", h.GetMarkdown)
 		api.GET("/skills", h.ListSkills)
 		api.GET("/tasks/:taskId", h.GetTaskStatus)
@@ -587,6 +588,56 @@ func (h *Handler) ExportDocument(c *gin.Context) {
 	}
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s.docx", sessionID))
 	c.Data(http.StatusOK, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", data)
+}
+
+// ExportPDF 导出 PDF:与 Word 同内容源,选项由前端 query 传入(导出设置页)
+func (h *Handler) ExportPDF(c *gin.Context) {
+	sessionID := c.Param("id")
+	session, ok := h.sessionStore.GetSession(sessionID)
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
+		return
+	}
+
+	sections := outlineExportSections(session)
+	if len(sections) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "没有可导出的章节内容(请先生成大纲/正文)"})
+		return
+	}
+	payload := map[string]any{
+		"title":    session.Title,
+		"bid_no":   session.BidNo,
+		"sections": sections,
+		"options": map[string]any{
+			"vectorHD":      c.DefaultQuery("high_res", "1") == "1",
+			"bookmarks":     c.DefaultQuery("bookmarks", "1") == "1",
+			"watermark":     c.DefaultQuery("watermark", "0") == "1",
+			"watermarkText": c.DefaultQuery("watermark_text", "内部稿"),
+		},
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	resp, err := http.Post(h.config.PythonService+"/export-pdf", "application/json", bytes.NewReader(body))
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "导出服务不可用: " + err.Error()})
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+		c.JSON(http.StatusBadGateway, gin.H{"error": fmt.Sprintf("导出失败: %s", string(raw))})
+		return
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 50<<20))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s.pdf", sessionID))
+	c.Data(http.StatusOK, "application/pdf", data)
 }
 
 // outlineExportSections 把会话大纲展平为导出行;正文缺失时回退解析 Markdown

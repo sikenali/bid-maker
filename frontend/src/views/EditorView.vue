@@ -11,8 +11,10 @@ import {
   getGenerateStream,
   getMarkdown,
   exportDocx,
+  exportPdf,
 } from '../api/client'
 import { getTemplateList, getExportSettings, type TemplateData, type TemplateSection } from '../api/settings'
+import { BRAND_NAME } from '@/constants/brand'
 import { saveAs } from 'file-saver'
 import TopNav from '@/components/layout/TopNav.vue'
 import { useChatStore } from '../stores/chatStore'
@@ -826,7 +828,20 @@ async function handleExport() {
     const exportSettings = await getExportSettings()
     const format = exportSettings.format || 'docx'
     if (format === 'pdf') {
-      showToast('PDF 导出即将上线，请先使用 Word 格式', 'error')
+      const blob = await exportPdf(props.id, {
+        high_res: exportSettings.pdf_high_res ?? 1,
+        bookmarks: exportSettings.pdf_bookmarks ?? 1,
+        watermark: exportSettings.pdf_watermark ?? 0,
+        watermark_text: `${BRAND_NAME} · 内部稿`,
+      })
+      if (blob.type.includes('json')) {
+        let msg = '导出失败，请重试'
+        try { msg = JSON.parse(await blob.text()).error || msg } catch {}
+        showToast(msg, 'error')
+        return
+      }
+      saveAs(blob, `${title}_${dateStr}.pdf`)
+      showToast('PDF 导出成功')
       return
     }
     if (format === 'markdown' || format === 'md') {
