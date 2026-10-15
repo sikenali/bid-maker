@@ -1,0 +1,103 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            flag: --win --x64
+          - os: macos-latest
+            flag: --mac --x64 --arm64
+          - os: ubuntu-22.04
+            flag: --linux --x64
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install frontend dependencies
+        run: npm ci --prefix frontend
+
+      - name: Build & Package (${{ matrix.flag }})
+        # 脚本内部依次执行:parse-service 生产化安装 -> Go 交叉编译(全平台,纯 Go 无需 CGO)
+        # -> 前端构建 -> electron-builder 出包。flag 原样透传给 electron-builder
+        run: node scripts/package-desktop.js ${{ matrix.flag }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload desktop artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.os }}
+          path: release/*
+          if-no-files-found: error
+
+  publish:
+    name: Publish Release
+    needs: build
+    runs-on: ubuntu-22.04
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get Version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish Draft Release
+        run: |
+          DRAFT_RELEASE=$(gh release list --repo ${{ github.repository }} --json tagName,isDraft --jq '.[] | select(.tagName == "${{ steps.version.outputs.VERSION }}" and .isDraft == true) | .tagName' 2>/dev/null || true)
+          if [ -n "$DRAFT_RELEASE" ]; then
+            gh release edit "$DRAFT_RELEASE" --draft=false
+            echo "✅ Release $DRAFT_RELEASE 已发布"
+          else
+            echo "⚠️ 未找到草稿 Release,手动检查: https://github.com/${{ github.repository }}/releases"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          echo "## ✅ 三平台桌面版构建完成" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Windows**: 文制星-${VERSION}-windows-x64.exe" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **macOS Intel**: 文制星-${VERSION}-mac-x64.dmg" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **macOS Apple Silicon**: 文制星-${VERSION}-mac-arm64.dmg" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Linux**: 文制星-${VERSION}-linux-x86_64.AppImage" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "📦 [点击下载](https://github.com/${{ github.repository }}/releases/tag/${VERSION})" >> "$GITHUB_STEP_SUMMARY"
