@@ -33,3 +33,7 @@ backend/tmp/
 # Docs (Chinese filenames)
 标书生成流程图.md
 需求文档.md
+
+# Local reference docs (do not push)
+docs/AGENT.md
+docs/DESIGN.md
