@@ -68,7 +68,7 @@ npm i
 # 解析服务（Node.js，端口 8000）
 cd parse-service && npm i && cd ..
 
-# 前端（Vite，端口 5173）
+# 前端（Vite，端口 3000，可用 FRONTEND_PORT 覆盖）
 cd frontend && npm i && cd ..
 
 # 后端（Go，端口 8080）
@@ -94,6 +94,24 @@ npm run dev
 npm run dev:parse     # Node.js 解析服务
 npm run dev:backend   # Go 后端
 npm run dev:frontend  # Vue 前端
+```
+
+### 生产部署说明
+
+| 服务 | 端口(默认) | 说明 |
+|------|-----------|------|
+| 解析服务 | 8000 | `PORT=8001 node server.js` 可改端口 |
+| Go 后端 | 8080 | `PORT=8081` + `PARSE_SERVICE=http://localhost:8000` |
+| 前端开发 | 3000 | `FRONTEND_PORT=3001 npm run dev`；后端地址 `BACKEND_URL=http://localhost:8080` |
+
+注意：
+- `vite preview` / 静态托管**没有** `/api` 代理，生产环境须经网关或反代把 `/api/*` 指到 Go 后端（8080），否则前端请求 404。
+- 本机 3000 端口如被其他项目占用，用 `FRONTEND_PORT` 另起端口。
+
+```nginx
+# 反代示例
+location /api/ { proxy_pass http://127.0.0.1:8080; }
+location / { root /var/www/bid-maker/dist; try_files $uri $uri/ /index.html; }
 ```
 
 ## 数据结构

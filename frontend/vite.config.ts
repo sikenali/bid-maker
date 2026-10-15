@@ -11,10 +11,11 @@ export default defineConfig({
     },
   },
   server: {
-    port: 3000,
+    // 端口可配:FRONTEND_PORT=3001 npm run dev(避免与其他本地项目冲突,默认3000)
+    port: Number(process.env.FRONTEND_PORT) || 3000,
     proxy: {
       '/api': {
-        target: 'http://localhost:8080',
+        target: process.env.BACKEND_URL || 'http://localhost:8080',
         changeOrigin: true,
       },
     },

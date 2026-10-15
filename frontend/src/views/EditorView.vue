@@ -825,13 +825,18 @@ async function handleExport() {
   try {
     const exportSettings = await getExportSettings()
     const format = exportSettings.format || 'docx'
+    if (format === 'pdf') {
+      showToast('PDF 导出即将上线，请先使用 Word 格式', 'error')
+      return
+    }
     if (format === 'markdown' || format === 'md') {
       const mdRes = await getMarkdown(props.id)
-      const mdContent = mdRes.data.markdown || markdown.value || ''
+      let mdContent = mdRes.data.markdown || markdown.value || ''
       if (!mdContent.trim()) {
         showToast('没有可导出的内容', 'error')
         return
       }
+      mdContent = applyMarkdownExportOptions(mdContent, exportSettings)
       const blob = new Blob([mdContent], { type: 'text/markdown;charset=utf-8' })
       saveAs(blob, `${title}_${dateStr}.md`)
       showToast('Markdown 导出成功')
@@ -852,6 +857,32 @@ async function handleExport() {
   } finally {
     isExporting.value = false
   }
+}
+
+// ── Markdown 导出选项(导出设置页 md_keep_tables / md_demote_heading) ──
+function applyMarkdownExportOptions(md: string, settings: any): string {
+  let out = md
+  if (settings.md_keep_tables === 0) {
+    // 表格行转为空格分隔纯文本,分隔线直接丢弃
+    out = out
+      .split('\n')
+      .map((l) => {
+        const t = l.trim()
+        if (!/^\|.*\|$/.test(t)) return l
+        if (/^[\s|:~-]+$/.test(t)) return ''
+        return t.replace(/^\||\|$/g, '').split('|').map((c) => c.trim()).filter(Boolean).join(' ')
+      })
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n')
+  }
+  if (settings.md_demote_heading === 1) {
+    // 标题整体降一级(#→##),便于粘贴进 Wiki 文档树
+    out = out
+      .split('\n')
+      .map((l) => l.replace(/^(#{1,5})([ \t])/, '#$1$2'))
+      .join('\n')
+  }
+  return out
 }
 
 // ── Chat ───────────────────────────────────────────────────────────
