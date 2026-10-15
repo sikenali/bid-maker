@@ -408,6 +408,7 @@ onMounted(loadSkills);
               :key="skill.name"
               class="list-row"
               :class="{ expanded: expandedSkill === skill.name }"
+              @click="expandedSkill = expandedSkill === skill.name ? null : skill.name"
             >
               <td class="col-name">
                 <span class="row-name">{{ skill.name }}</span>
@@ -420,7 +421,7 @@ onMounted(loadSkills);
                 <div class="row-actions">
                   <button class="action-btn edit" @click.stop="openEdit(skill)">修改</button>
                   <button class="action-btn delete" @click.stop="handleDelete(skill)">删除</button>
-                  <UiSwitch :model-value="skill.enabled" size="sm" @update:model-value="toggleEnabled(skill)" />
+                  <UiSwitch :model-value="skill.enabled" size="sm" @click.stop @update:model-value="toggleEnabled(skill)" />
                 </div>
               </td>
             </tr>
@@ -745,6 +746,8 @@ onMounted(loadSkills);
 .list-table th:last-child { text-align: right; }
 .list-table td { padding: 0 40px; height: 76px; vertical-align: middle; border-bottom: 0.7px solid var(--color-border-soft, #EDE9E0); }
 .list-table td:last-child { text-align: right; }
+.list-table tbody tr.list-row { cursor: pointer; transition: background 0.15s; }
+.list-table tbody tr.list-row:hover { background: var(--color-bg-card, #FCFBF8); }
 .col-name { width: 430px; flex-shrink: 0; }
 .col-desc { flex: 1; }
 .col-action { width: 260px; flex-shrink: 0; }
