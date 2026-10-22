@@ -257,7 +257,7 @@ function handleExtract() {
 }
 
 .upload-card {
-  width: 875px;
+  width: min(875px, calc(100vw - 64px));
   height: 345px;
   flex-shrink: 0;
   background-color: var(--color-bg-white, #FFFFFF);
