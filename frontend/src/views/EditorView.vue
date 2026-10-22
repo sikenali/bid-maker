@@ -16,6 +16,7 @@ import {
 import { getTemplateList, getExportSettings, type TemplateData, type TemplateSection } from '../api/settings'
 import { BRAND_NAME } from '@/constants/brand'
 import { saveAs } from 'file-saver'
+import { ElMessage } from '@/utils/toast'
 import TopNav from '@/components/layout/TopNav.vue'
 import { useChatStore } from '../stores/chatStore'
 import { useSettingsStore } from '../stores/settingsStore'
@@ -69,7 +70,6 @@ const chatInput = ref('')
 const modelDropdownOpen = ref(false)
 const lastSync = ref<string>('')
 const lastSaveTime = ref<string>('')
-const toast = ref<{ show: boolean; text: string; type: 'info' | 'error' }>({ show: false, text: '', type: 'info' })
 
 // Template state
 const templates = ref<TemplateData[]>([])
@@ -389,8 +389,8 @@ async function saveMarkdown(md: string) {
 
 // ── Toast ──────────────────────────────────────────────────────────
 function showToast(text: string, type: 'info' | 'error' = 'info') {
-  toast.value = { show: true, text, type }
-  setTimeout(() => { toast.value.show = false }, 2600)
+  const map: Record<string, (...args: any[]) => void> = { info: ElMessage.info, error: ElMessage.error }
+  map[type](text)
 }
 
 // ── Outline helpers ────────────────────────────────────────────────
@@ -1362,12 +1362,6 @@ const OutlineNodeRecursive = defineComponent({
     </aside>
 
     </div>
-
-    <transition name="fade">
-      <div v-if="toast.show" class="toast" :class="toast.type">
-        {{ toast.text }}
-      </div>
-    </transition>
   </div>
 </template>
 
@@ -2437,34 +2431,6 @@ const OutlineNodeRecursive = defineComponent({
   color: var(--color-error);
   border-color: var(--color-error);
   background: var(--color-error-soft);
-}
-
-/* ── Toast ─────────────────────────────────────────────────── */
-.toast {
-  position: fixed;
-  top: 30px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 10px 20px;
-  border-radius: 8px;
-  font-size: 14px;
-  color: #fff;
-  z-index: 100;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.toast.info { background: var(--color-success-strong); }
-.toast.error { background: var(--color-error); }
-
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.25s ease, transform 0.25s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-  transform: translate(-50%, -8px);
 }
 
 .spin-icon {

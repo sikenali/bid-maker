@@ -73,7 +73,7 @@ onMounted(() => {
   if (savedTheme && themes.some(t => t.type === savedTheme)) {
     selectedTheme.value = savedTheme;
   }
-  selectedAccent.value = localStorage.getItem('accent') || 'vermilion';
+  selectedAccent.value = localStorage.getItem('accent-color') || 'vermilion';
   selectedLayout.value = localStorage.getItem('layout') || 'topbar';
 });
 
@@ -85,11 +85,11 @@ async function selectTheme(type: string) {
   } catch {}
 }
 
-function selectAccent(key: string) {
+  function selectAccent(key: string) {
   selectedAccent.value = key;
   const accent = accents.find(a => a.key === key);
   if (!accent) return;
-  localStorage.setItem('accent', key);
+  localStorage.setItem('accent-color', key);
   themeStore.applyAccent(accent.color);
 }
 
@@ -106,9 +106,9 @@ function resetAll() {
   selectedLayout.value = 'topbar';
   themeStore.setTheme('parchment');
   saveTheme('parchment').catch(() => {});
-  localStorage.setItem('accent', 'vermilion');
+  localStorage.setItem('accent-color', 'vermilion');
   themeStore.applyAccent('#BE3B2E');
-  localStorage.setItem('layout', 'sidebar');
+  localStorage.setItem('layout', 'topbar');
   ElMessage.success('已恢复默认');
 }
 </script>

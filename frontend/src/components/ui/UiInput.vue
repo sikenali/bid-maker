@@ -135,7 +135,7 @@ function clear() {
   font-family: "SourceHanSans-Regular", var(--font-family-cn), sans-serif;
 }
 .is-sm .ui-input-el { height: 36px; padding: 0 12px; font-size: 13px; }
-.is-md .ui-input-el { height: 44px; padding: 0 16px; }
+.is-md .ui-input-el { height: 42px; padding: 0 16px; }
 .is-lg .ui-input-el { height: 52px; padding: 0 18px; font-size: 15px; }
 textarea.ui-input-el { height: auto; padding: 12px 16px; resize: vertical; line-height: 1.6; }
 .ui-input-el::placeholder { color: var(--color-text-faint, #A7A296); }

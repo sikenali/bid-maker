@@ -235,7 +235,7 @@ onUnmounted(() => { if (props.modelValue) lockScroll(false); });
   gap: 12px;
   padding-top: 20px;
   margin-top: 4px;
-  border-top: 1px solid var(--color-bg-secondary, #F7F3EA);
+  border-top: 1px solid var(--color-border-soft, #EDE9E0);
 }
 .ui-modal-footer-hint:empty { display: none; }
 .ui-modal-footer-btns {

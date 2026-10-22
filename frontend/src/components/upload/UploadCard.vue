@@ -329,7 +329,7 @@ function handleExtract() {
 .fmt-w   { background-color: #2B579A; font-size: 11px; }
 .fmt-x   { background-color: #217346; font-size: 11px; }
 .fmt-p   { background-color: var(--color-primary, #C0392B); font-size: 11px; }
-.fmt-pdf { background-color: #B03A2E; font-size: 9px; }
+.fmt-pdf { background-color: var(--color-primary, #C0392B); font-size: 9px; }
 .fmt-md  { background-color: #4A6FA5; font-size: 9px; }
 .fmt-tx  { background-color: #5A5750; font-size: 9px; }
 

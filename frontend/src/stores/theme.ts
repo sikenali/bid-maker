@@ -5,6 +5,7 @@ import { getTheme as getThemeFromAPI, setTheme as setThemeToAPI } from '@/api/se
 export type ThemeType = 'parchment' | 'dark' | 'white';
 
 const ACCENT_KEY = 'accent-color';
+const LAYOUT_KEY = 'bid-maker-layout';
 
 const themeTokens: Record<ThemeType, Record<string, string>> = {
   parchment: {
@@ -49,7 +50,7 @@ const themeTokens: Record<ThemeType, Record<string, string>> = {
     '--color-border-hover': '#3A3B3F',
     '--color-success': '#5CB98C',
     '--color-success-strong': '#7BC8A4',
-    '--color-success-soft': '#1D3329',
+    '--color-success-soft': '#1A3A2A',
     '--color-info': '#82AEDD',
     '--color-info-soft': '#1B2A3A',
     '--color-warning': '#F2B23E',
@@ -87,6 +88,14 @@ const themeTokens: Record<ThemeType, Record<string, string>> = {
 export const useThemeStore = defineStore('theme', () => {
   const currentTheme = ref<ThemeType>('parchment');
   const currentAccent = ref<string | null>(null);
+  const layout = ref<'topbar' | 'sidebar'>(
+    (localStorage.getItem(LAYOUT_KEY) as 'topbar' | 'sidebar') || 'topbar'
+  );
+
+  function setLayout(value: 'topbar' | 'sidebar') {
+    layout.value = value;
+    localStorage.setItem(LAYOUT_KEY, value);
+  }
 
   function applyAccent(color: string | null) {
     const root = document.documentElement;
@@ -150,5 +159,5 @@ export const useThemeStore = defineStore('theme', () => {
     }
   }
 
-  return { currentTheme, currentAccent, loadTheme, setTheme, applyAccent };
+  return { currentTheme, currentAccent, layout, setLayout, loadTheme, setTheme, applyAccent };
 });

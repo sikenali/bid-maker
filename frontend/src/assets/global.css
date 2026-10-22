@@ -136,7 +136,6 @@ html {
 }
 
 body {
-  font-family: var(--font-family);
   font-family: var(--font-family-cn), var(--font-family);
   line-height: var(--leading-normal);
   color: var(--color-text-primary);

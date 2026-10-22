@@ -22,7 +22,7 @@ const showSettingsModal = ref(false);
   <header class="top-nav">
     <div class="nav-left" @click="router.push('/')">
       <div class="tool-mark">
-        <RiTargetLine class="tool-logo" />
+        <RiTargetLine class="tool-logo" size="26" />
       </div>
       <span class="brand-cn">{{ brand || BRAND_NAME }}</span>
       <span class="divider"></span>
@@ -31,12 +31,12 @@ const showSettingsModal = ref(false);
     <div class="nav-right">
       <UiTip v-if="showBack" text="返回" placement="bottom">
         <button class="nav-btn" @click="router.push('/')">
-          <RiArrowLeftSLine class="icon" />
+          <RiArrowLeftSLine class="icon" size="18" />
         </button>
       </UiTip>
       <UiTip text="设置" placement="bottom">
         <button class="nav-btn" @click="showSettingsModal = true">
-          <RiSettings3Line class="icon" />
+          <RiSettings3Line class="icon" size="18" />
         </button>
       </UiTip>
     </div>
@@ -71,10 +71,6 @@ const showSettingsModal = ref(false);
   justify-content: center;
 }
 .tool-logo {
-  font-family: "remixicon", sans-serif;
-  font-style: normal;
-  font-size: 26px;
-  line-height: 1;
   color: var(--color-primary, #C0392B);
 }
 .brand-cn {
@@ -101,17 +97,17 @@ const showSettingsModal = ref(false);
   gap: 12px;
 }
 .nav-btn {
-  width: 28px;
-  height: 28px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   border: none;
-  background-color: var(--color-bg-white, #FFFFFF);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  background-color: transparent;
+  box-shadow: none;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background-color 0.25s ease, color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
+  transition: background-color var(--transition-base), color var(--transition-base), transform var(--transition-base), box-shadow var(--transition-base);
 }
 .nav-btn:hover {
   background-color: var(--color-primary, #C0392B);
@@ -120,10 +116,8 @@ const showSettingsModal = ref(false);
   box-shadow: 0 4px 12px color-mix(in srgb, var(--color-primary, #C0392B) 30%, transparent);
 }
 .nav-btn .icon {
-  font-family: "remixicon", sans-serif;
-  font-style: normal;
-  font-size: 14px;
   color: var(--color-text-secondary, #6E6A60);
+  font-size: 18px;
 }
 .nav-btn:hover .icon {
   color: #fff;
