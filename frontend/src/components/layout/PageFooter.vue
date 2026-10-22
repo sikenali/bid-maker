@@ -21,7 +21,7 @@
     </div>
 
     <!-- 右侧：版权 -->
-    <span class="footer-copy">© {{ year }} {{ BRAND_NAME }} Powered by <a href="https://lazycat.cloud" target="_blank" rel="noopener noreferrer" class="footer-link">LightOS</a></span>
+    <span class="footer-copy">© {{ year }} {{ BRAND_NAME }} · Powered by <a href="https://lazycat.cloud/" target="_blank" rel="noopener noreferrer" class="footer-link">LightOS</a></span>
   </footer>
 </template>
 

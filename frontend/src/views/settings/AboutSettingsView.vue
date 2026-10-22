@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { BRAND_NAME, BRAND_TITLE } from '@/constants/brand';
+import { BRAND_NAME, BRAND_PRODUCT, BRAND_TITLE } from '@/constants/brand';
 
 const currentYear = new Date().getFullYear();
 // 应用版本号：当前为常量，后续打包时从软件版本提取显示
@@ -35,7 +35,7 @@ const appVersion = 'V1.0.0';
 
       <div class="about-name">{{ BRAND_TITLE }}</div>
 
-      <div class="about-slogan">智能化文件制作工具</div>
+      <div class="about-slogan">{{ BRAND_PRODUCT }}</div>
 
       <div class="about-version">版本: {{ appVersion }}</div>
 

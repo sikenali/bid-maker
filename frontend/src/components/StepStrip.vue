@@ -35,8 +35,7 @@
     <div v-if="buttonLabel" class="btn-area">
         <button
           class="extract-btn"
-          :disabled="loading || disabled"
-          @click="!loading && !disabled && onExtract()"
+          @click="onExtract()"
         >
         <span v-if="loading" class="btn-spinner">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">

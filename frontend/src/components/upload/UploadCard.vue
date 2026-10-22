@@ -154,7 +154,6 @@ function handleReplace() {
   emit('replace');
 }
 
-const btnDisabled = computed(() => uploading.value);
 const btnLabel = computed(() => {
   if (uploading.value) return '制作中…';
   return '一键制作';
@@ -244,7 +243,6 @@ function handleExtract() {
       :steps="steps"
       :loading="uploading"
       :button-label="btnLabel"
-      :disabled="btnDisabled"
       @extract="handleExtract"
     />
   </div>
@@ -272,7 +270,7 @@ function handleExtract() {
   transition: border-color 0.2s, background-color 0.2s;
   position: relative;
   overflow: hidden;
-  gap: 20px;
+  gap: 24px;
   padding: 40px 32px;
   margin-bottom: 24px;
 }
@@ -297,7 +295,7 @@ function handleExtract() {
   justify-content: center;
 }
 .upload-icon {
-  font-size: 34px;
+  font-size: 40px;
   color: var(--color-text-muted, #8A8578);
 }
 .upload-hint {
@@ -313,10 +311,11 @@ function handleExtract() {
   display: flex;
   align-items: center;
   gap: 12px;
+  margin-top: 8px;
 }
 .fmt {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   border-radius: 5px;
   display: flex;
   align-items: center;
@@ -335,8 +334,8 @@ function handleExtract() {
 
 .replace-tip {
   position: absolute;
-  top: 16px;
-  right: 16px;
+  top: 12px;
+  right: 12px;
   z-index: 2;
 }
 .replace-icon {

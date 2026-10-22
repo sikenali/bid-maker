@@ -60,8 +60,8 @@ interface LayoutOption {
 }
 
 const layouts: LayoutOption[] = [
-  { key: 'topbar', name: '顶栏模式 · 居中导航', desc: '六大模块在顶栏居中排布，右上角统一为返回与设置' },
-  { key: 'sidebar', name: '侧边栏模式 · 左侧导航', desc: '六大模块在左侧竖列居中，顶栏不显示图标文字' },
+  { key: 'topbar', name: '顶栏模式·居中导航', desc: '工具栏在顶栏居中排布，状态栏固定在底部' },
+  { key: 'sidebar', name: '侧边栏模式·左侧导航', desc: '工具栏固定在左侧竖列居中，状态栏固定在底部' },
 ];
 
 const selectedTheme = ref('parchment');
